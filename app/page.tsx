@@ -1,65 +1,161 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { StatCard } from '@/components/StatCard';
+import { SpendingPieChart } from '@/components/charts/SpendingPieChart';
+import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
+import { MonthlyExpenseTrendsChart } from '@/components/charts/MonthlyExpenseTrendsChart';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  TrendingUp,
+  TrendingDown,
+  Upload,
+  PiggyBank,
+  Landmark,
+} from 'lucide-react';
+import { useScreenshotMode } from '@/lib/screenshot-mode';
+import { generateFakeAnalytics } from '@/lib/fake-data';
+
+interface AnalyticsData {
+  spendingByCategory: { category: string; total: number }[];
+  currentMonthSpendingByCategory: { category: string; total: number }[];
+  monthlyTotals: { month: string; income: number; expenses: number }[];
+  monthlyExpensesByCategory: { month: string; category: string; total: number }[];
+  totalBalance: number;
+  currentNetWorth: number;
+  netWorthUpdatedAt: string | null;
+  stats: {
+    totalTransactions: number;
+    totalIncome: number;
+    totalExpenses: number;
+    uncategorized: number;
+  };
+  currentMonth: {
+    income: number;
+    expenses: number;
+    invested: number;
+    net: number;
+    expensesTrend: number;
+  };
+}
+
+export default function Dashboard() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { isScreenshotMode } = useScreenshotMode();
+
+  useEffect(() => {
+    if (isScreenshotMode) {
+      setData(generateFakeAnalytics() as AnalyticsData);
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/analytics');
+        const result = await response.json();
+        setData(result);
+      } catch (error) {
+        console.error('Failed to fetch analytics:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [isScreenshotMode]);
+
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="h-32 bg-muted rounded"></div>
+            <div className="h-32 bg-muted rounded"></div>
+            <div className="h-32 bg-muted rounded"></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="h-80 bg-muted rounded"></div>
+            <div className="h-80 bg-muted rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.stats.totalTransactions === 0) {
+    return (
+      <div className="p-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Your financial overview</p>
+        </div>
+        <Card className="max-w-xl mx-auto">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Upload className="h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-xl font-semibold mb-2">No transactions yet</h3>
+            <p className="text-muted-foreground mb-6 text-center">
+              Upload your first bank or credit card statement to get started
+            </p>
+            <Link href="/upload">
+              <Button>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Statement
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="p-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">Your financial overview</p>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title="Net Worth"
+          value={data.currentNetWorth}
+          subtitle={data.netWorthUpdatedAt ? `Updated ${new Date(data.netWorthUpdatedAt + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : undefined}
+          icon={PiggyBank}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        <StatCard
+          title="Income"
+          value={data.currentMonth.income}
+          subtitle="This month"
+          icon={TrendingUp}
+        />
+        <StatCard
+          title="Expenses"
+          value={data.currentMonth.expenses}
+          subtitle="This month"
+          icon={TrendingDown}
+        />
+        <StatCard
+          title="Invested"
+          value={data.currentMonth.invested}
+          subtitle="This month"
+          icon={Landmark}
+        />
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <SpendingPieChart data={data.currentMonthSpendingByCategory} />
+        <MonthlyTrendChart data={data.monthlyTotals} />
+      </div>
+
+      {/* Monthly Expense Trends */}
+      <MonthlyExpenseTrendsChart data={data.monthlyExpensesByCategory} />
     </div>
   );
 }

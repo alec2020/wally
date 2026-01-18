@@ -1,0 +1,810 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { Calendar } from '@/components/ui/calendar';
+import { cn, formatCurrency, formatDate, getCategoryColor } from '@/lib/utils';
+import { MoreHorizontal, Search, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, parseISO } from 'date-fns';
+
+interface Transaction {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  category: string | null;
+  subcategory: string | null;
+  merchant: string | null;
+  is_transfer: boolean;
+  account_id: number | null;
+  account_name: string | null;
+}
+
+interface Account {
+  id: number;
+  name: string;
+}
+
+interface TransactionTableProps {
+  transactions: Transaction[];
+  accounts: Account[];
+  onUpdate: (id: number, updates: Partial<Transaction>) => void;
+  onDelete: (id: number) => void;
+  onRecategorize: () => void;
+  isLoading?: boolean;
+}
+
+const CATEGORIES = [
+  'Income',
+  'Housing',
+  'Transportation',
+  'Groceries',
+  'Food',
+  'Shopping',
+  'Entertainment',
+  'Health',
+  'Travel',
+  'Financial',
+  'Subscriptions',
+  'Investing',
+  'Other',
+];
+
+type TransactionType = 'all' | 'income' | 'expenses';
+type DatePreset = 'all' | 'this-month' | 'last-month' | 'last-3-months' | 'this-year' | 'custom';
+
+export function TransactionTable({
+  transactions,
+  accounts,
+  onUpdate,
+  onDelete,
+  onRecategorize,
+  isLoading,
+}: TransactionTableProps) {
+  const [search, setSearch] = useState('');
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string>('all');
+  const [transactionType, setTransactionType] = useState<TransactionType>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+
+  // Calculate date range based on preset
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    switch (datePreset) {
+      case 'this-month':
+        return {
+          startDate: startOfMonth(now),
+          endDate: endOfMonth(now),
+        };
+      case 'last-month':
+        const lastMonth = subMonths(now, 1);
+        return {
+          startDate: startOfMonth(lastMonth),
+          endDate: endOfMonth(lastMonth),
+        };
+      case 'last-3-months':
+        return {
+          startDate: startOfMonth(subMonths(now, 2)),
+          endDate: endOfMonth(now),
+        };
+      case 'this-year':
+        return {
+          startDate: startOfYear(now),
+          endDate: now,
+        };
+      case 'custom':
+        if (customDateRange.from && customDateRange.to) {
+          return {
+            startDate: customDateRange.from,
+            endDate: customDateRange.to,
+          };
+        }
+        return { startDate: undefined, endDate: undefined };
+      case 'all':
+      default:
+        return { startDate: undefined, endDate: undefined };
+    }
+  }, [datePreset, customDateRange]);
+
+  const filteredTransactions = transactions
+    .filter((tx) => {
+      const matchesSearch =
+        search === '' ||
+        tx.description.toLowerCase().includes(search.toLowerCase()) ||
+        tx.merchant?.toLowerCase().includes(search.toLowerCase());
+
+      const matchesCategory =
+        categoryFilters.length === 0 ||
+        (categoryFilters.includes('uncategorized') && !tx.category) ||
+        (tx.category && categoryFilters.includes(tx.category));
+
+      const matchesAccount =
+        accountFilter === 'all' ||
+        tx.account_id?.toString() === accountFilter;
+
+      const matchesType =
+        transactionType === 'all' ||
+        (transactionType === 'income' && tx.amount > 0) ||
+        (transactionType === 'expenses' && tx.amount < 0);
+
+      const txDate = parseISO(tx.date);
+      const matchesDateRange =
+        !dateRange.startDate ||
+        !dateRange.endDate ||
+        (txDate >= dateRange.startDate && txDate <= dateRange.endDate);
+
+      return matchesSearch && matchesCategory && matchesAccount && matchesType && matchesDateRange;
+    })
+    .sort((a, b) => {
+      const aVal = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
+      const bVal = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
+      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+
+  const totalPages = Math.ceil(filteredTransactions.length / pageSize);
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Reset to page 1 when filters change
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setCurrentPage(1);
+  };
+
+  const toggleCategoryFilter = (category: string) => {
+    setCategoryFilters(prev => {
+      if (prev.includes(category)) {
+        return prev.filter(c => c !== category);
+      } else {
+        return [...prev, category];
+      }
+    });
+    setCurrentPage(1);
+  };
+
+  const handleAccountFilterChange = (value: string) => {
+    setAccountFilter(value);
+    setCurrentPage(1);
+  };
+
+  const toggleSort = (field: 'date' | 'amount') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const handleTransactionTypeChange = (value: TransactionType) => {
+    setTransactionType(value);
+    setCurrentPage(1);
+  };
+
+  const handleDatePresetChange = (value: DatePreset) => {
+    setDatePreset(value);
+    setCurrentPage(1);
+  };
+
+  const clearAllFilters = () => {
+    setCategoryFilters([]);
+    setAccountFilter('all');
+    setTransactionType('all');
+    setDatePreset('all');
+    setCustomDateRange({ from: undefined, to: undefined });
+    setCurrentPage(1);
+  };
+
+  const uncategorizedCount = transactions.filter((tx) => !tx.category).length;
+
+  // Count active filters
+  const activeFilterCount = [
+    categoryFilters.length > 0,
+    accountFilter !== 'all',
+    transactionType !== 'all',
+    datePreset !== 'all',
+  ].filter(Boolean).length;
+
+  // Calculate summary stats for filtered results
+  const filterStats = useMemo(() => {
+    if (activeFilterCount === 0) return null;
+    const totalExpenses = filteredTransactions
+      .filter(tx => tx.amount < 0 && !tx.is_transfer)
+      .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    const totalIncome = filteredTransactions
+      .filter(tx => tx.amount > 0 && !tx.is_transfer && tx.category !== 'Financial')
+      .reduce((sum, tx) => sum + tx.amount, 0);
+    return {
+      count: filteredTransactions.length,
+      totalExpenses,
+      totalIncome,
+    };
+  }, [filteredTransactions, activeFilterCount]);
+
+  // Get display label for date preset
+  const getDatePresetLabel = () => {
+    switch (datePreset) {
+      case 'this-month':
+        return 'This Month';
+      case 'last-month':
+        return 'Last Month';
+      case 'last-3-months':
+        return 'Last 3 Months';
+      case 'this-year':
+        return 'This Year';
+      case 'custom':
+        if (customDateRange.from && customDateRange.to) {
+          return `${format(customDateRange.from, 'MMM d')} - ${format(customDateRange.to, 'MMM d')}`;
+        }
+        return 'Custom';
+      default:
+        return '';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Search and Filter Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search transactions..."
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <Filter className="h-4 w-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-4 max-h-[85vh] overflow-y-auto" align="end">
+            <div className="space-y-4">
+              {/* Transaction Type */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Transaction Type</label>
+                <div className="flex gap-2">
+                  {(['all', 'income', 'expenses'] as TransactionType[]).map((type) => (
+                    <Button
+                      key={type}
+                      variant={transactionType === type ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn(
+                        'flex-1',
+                        transactionType === type && 'bg-gray-900'
+                      )}
+                      onClick={() => handleTransactionTypeChange(type)}
+                    >
+                      {type === 'all' ? 'All' : type === 'income' ? 'Income' : 'Expenses'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category - Multi-select */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Categories</label>
+                  {categoryFilters.length > 0 && (
+                    <button
+                      onClick={() => setCategoryFilters([])}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto">
+                  <button
+                    onClick={() => toggleCategoryFilter('uncategorized')}
+                    className={cn(
+                      'px-2 py-1 text-xs rounded-full border transition-colors',
+                      categoryFilters.includes('uncategorized')
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-card text-muted-foreground border-border hover:border-foreground/30'
+                    )}
+                  >
+                    Uncategorized ({uncategorizedCount})
+                  </button>
+                  {CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => toggleCategoryFilter(cat)}
+                      className={cn(
+                        'px-2 py-1 text-xs rounded-full border transition-colors',
+                        categoryFilters.includes(cat)
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-card text-muted-foreground border-border hover:border-foreground/30'
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Account */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Account</label>
+                <Select value={accountFilter} onValueChange={handleAccountFilterChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select account..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Accounts</SelectItem>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id.toString()}>
+                        {account.name.replace(' Account', '')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date Range */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date Range</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={datePreset === 'this-month' ? 'default' : 'outline'}
+                    size="sm"
+                    className={datePreset === 'this-month' ? 'bg-gray-900' : ''}
+                    onClick={() => handleDatePresetChange('this-month')}
+                  >
+                    This Month
+                  </Button>
+                  <Button
+                    variant={datePreset === 'last-month' ? 'default' : 'outline'}
+                    size="sm"
+                    className={datePreset === 'last-month' ? 'bg-gray-900' : ''}
+                    onClick={() => handleDatePresetChange('last-month')}
+                  >
+                    Last Month
+                  </Button>
+                  <Button
+                    variant={datePreset === 'last-3-months' ? 'default' : 'outline'}
+                    size="sm"
+                    className={datePreset === 'last-3-months' ? 'bg-gray-900' : ''}
+                    onClick={() => handleDatePresetChange('last-3-months')}
+                  >
+                    Last 3 Months
+                  </Button>
+                  <Button
+                    variant={datePreset === 'this-year' ? 'default' : 'outline'}
+                    size="sm"
+                    className={datePreset === 'this-year' ? 'bg-gray-900' : ''}
+                    onClick={() => handleDatePresetChange('this-year')}
+                  >
+                    This Year
+                  </Button>
+                  <Button
+                    variant={datePreset === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn('col-span-2', datePreset === 'all' ? 'bg-gray-900' : '')}
+                    onClick={() => handleDatePresetChange('all')}
+                  >
+                    All Time
+                  </Button>
+                </div>
+
+                <div className="pt-2 border-t">
+                  <p className="text-sm text-muted-foreground mb-2">Or select custom range:</p>
+                  <Calendar
+                    mode="range"
+                    selected={{ from: customDateRange.from, to: customDateRange.to }}
+                    onSelect={(range) => {
+                      setCustomDateRange({ from: range?.from, to: range?.to });
+                      // Only apply filter when both dates are selected AND they're different
+                      // (meaning user has completed selecting a range, not just clicked once)
+                      if (range?.from && range?.to && range.from.getTime() !== range.to.getTime()) {
+                        setDatePreset('custom');
+                        setCurrentPage(1);
+                      }
+                    }}
+                    numberOfMonths={1}
+                    className="rounded-md border"
+                  />
+                  {/* Apply button for when user wants to filter by a single day */}
+                  {customDateRange.from && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        {customDateRange.from && customDateRange.to && customDateRange.from.getTime() === customDateRange.to.getTime()
+                          ? format(customDateRange.from, 'MMM d, yyyy')
+                          : customDateRange.from && !customDateRange.to
+                          ? `${format(customDateRange.from, 'MMM d')} - select end date`
+                          : customDateRange.from && customDateRange.to
+                          ? `${format(customDateRange.from, 'MMM d')} - ${format(customDateRange.to, 'MMM d')}`
+                          : ''}
+                      </span>
+                      {customDateRange.from && customDateRange.to && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setDatePreset('custom');
+                            setCurrentPage(1);
+                          }}
+                          className="h-7 text-xs"
+                        >
+                          Apply
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {uncategorizedCount > 0 && (
+          <Button
+            variant="outline"
+            onClick={onRecategorize}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
+            Categorize All
+          </Button>
+        )}
+      </div>
+
+      {/* Active Filter Chips + Summary Stats */}
+      {activeFilterCount > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {categoryFilters.map((cat) => (
+              <Badge key={cat} variant="secondary" className="gap-1 pr-1">
+                {cat === 'uncategorized' ? 'Uncategorized' : cat}
+                <button
+                  onClick={() => toggleCategoryFilter(cat)}
+                  className="ml-1 hover:bg-muted rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            {accountFilter !== 'all' && (
+              <Badge variant="secondary" className="gap-1 pr-1">
+                {accounts.find(a => a.id.toString() === accountFilter)?.name.replace(' Account', '') || 'Account'}
+                <button
+                  onClick={() => setAccountFilter('all')}
+                  className="ml-1 hover:bg-muted rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {transactionType !== 'all' && (
+              <Badge variant="secondary" className="gap-1 pr-1">
+                {transactionType === 'income' ? 'Income' : 'Expenses'}
+                <button
+                  onClick={() => setTransactionType('all')}
+                  className="ml-1 hover:bg-muted rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {datePreset !== 'all' && (
+              <Badge variant="secondary" className="gap-1 pr-1">
+                {getDatePresetLabel()}
+                <button
+                  onClick={() => {
+                    setDatePreset('all');
+                    setCustomDateRange({ from: undefined, to: undefined });
+                  }}
+                  className="ml-1 hover:bg-muted rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {(activeFilterCount >= 2 || categoryFilters.length >= 2) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="text-muted-foreground hover:text-foreground h-6 px-2"
+              >
+                Clear all
+              </Button>
+            )}
+          </div>
+
+          {/* Summary Stats */}
+          {filterStats && (
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-muted-foreground">
+                <span className="font-medium">{filterStats.count}</span> transactions
+              </span>
+              {filterStats.totalExpenses > 0 && (
+                <span className="text-red-600">
+                  <span className="font-medium">{formatCurrency(filterStats.totalExpenses)}</span> spent
+                </span>
+              )}
+              {filterStats.totalIncome > 0 && (
+                <span className="text-primary">
+                  <span className="font-medium">{formatCurrency(filterStats.totalIncome)}</span> income
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="border rounded-lg overflow-hidden bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead
+                className="cursor-pointer hover:bg-muted"
+                onClick={() => toggleSort('date')}
+              >
+                <div className="flex items-center gap-1">
+                  Date
+                  <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead
+                className="text-right cursor-pointer hover:bg-muted"
+                onClick={() => toggleSort('amount')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Amount
+                  <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead className="w-[50px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedTransactions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  No transactions found
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedTransactions.map((tx) => (
+                <TableRow key={tx.id} className={tx.is_transfer ? 'opacity-50' : ''}>
+                  <TableCell className="whitespace-nowrap">
+                    {formatDate(tx.date)}
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium truncate max-w-[300px]">
+                        {tx.merchant || tx.description}
+                      </div>
+                      {tx.merchant && tx.merchant !== tx.description && (
+                        <div className="text-sm text-muted-foreground truncate max-w-[300px]">
+                          {tx.description}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {tx.account_name ? (
+                      <Badge variant="secondary" className="font-normal">
+                        {tx.account_name.replace(' Account', '')}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                            'hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400',
+                            tx.category ? 'text-white' : 'bg-muted text-muted-foreground'
+                          )}
+                          style={tx.category ? {
+                            backgroundColor: getCategoryColor(tx.category),
+                          } : undefined}
+                        >
+                          {tx.category || 'Uncategorized'}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[280px] p-3" align="start">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => onUpdate(tx.id, { category: null })}
+                            className={cn(
+                              'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                              'hover:bg-muted',
+                              !tx.category ? 'bg-muted text-foreground' : 'bg-muted/50 text-muted-foreground'
+                            )}
+                          >
+                            Uncategorized
+                          </button>
+                          {CATEGORIES.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => onUpdate(tx.id, { category: cat })}
+                              className={cn(
+                                'rounded-full px-3 py-1.5 text-xs font-medium text-white transition-colors',
+                                'hover:opacity-80',
+                                tx.category === cat && 'ring-2 ring-offset-2 ring-gray-400'
+                              )}
+                              style={{ backgroundColor: getCategoryColor(cat) }}
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      'text-right whitespace-nowrap font-medium',
+                      tx.amount < 0 ? 'text-red-600' : 'text-primary'
+                    )}
+                  >
+                    {formatCurrency(tx.amount)}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            onUpdate(tx.id, { is_transfer: !tx.is_transfer })
+                          }
+                        >
+                          {tx.is_transfer ? 'Unmark as Transfer' : 'Mark as Transfer'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Change Account</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {accounts.map((account) => (
+                              <DropdownMenuItem
+                                key={account.id}
+                                onClick={() =>
+                                  onUpdate(tx.id, { account_id: account.id } as Partial<Transaction>)
+                                }
+                                className={tx.account_id === account.id ? 'bg-muted' : ''}
+                              >
+                                {account.name.replace(' Account', '')}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => onDelete(tx.id)}
+                          className="text-red-600"
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, filteredTransactions.length)} of {filteredTransactions.length} transactions
+          {filteredTransactions.length !== transactions.length && (
+            <span> (filtered from {transactions.length})</span>
+          )}
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  if (totalPages <= 7) return true;
+                  if (page === 1 || page === totalPages) return true;
+                  if (Math.abs(page - currentPage) <= 1) return true;
+                  return false;
+                })
+                .map((page, idx, arr) => {
+                  const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
+                  return (
+                    <span key={page} className="flex items-center">
+                      {showEllipsis && <span className="px-2 text-muted-foreground">...</span>}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className={cn(
+                          "w-8",
+                          currentPage === page && "bg-muted border-foreground/20"
+                        )}
+                      >
+                        {page}
+                      </Button>
+                    </span>
+                  );
+                })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
