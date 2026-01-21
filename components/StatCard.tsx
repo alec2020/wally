@@ -14,6 +14,7 @@ interface StatCardProps {
   format?: 'currency' | 'number' | 'percent';
   className?: string;
   neutral?: boolean;
+  variant?: 'auto' | 'positive' | 'negative';
 }
 
 function useCountUp(target: number, duration: number = 1000) {
@@ -53,6 +54,7 @@ export function StatCard({
   format = 'currency',
   className,
   neutral = false,
+  variant = 'auto',
 }: StatCardProps) {
   const animatedValue = useCountUp(value, 800);
 
@@ -63,7 +65,7 @@ export function StatCard({
       ? `${animatedValue.toFixed(1)}%`
       : Math.round(animatedValue).toLocaleString();
 
-  const isPositive = value >= 0;
+  const isPositive = variant === 'auto' ? value >= 0 : variant === 'positive';
   const trendIsPositive = trend && trend > 0;
 
   return (
@@ -86,8 +88,8 @@ export function StatCard({
             neutral
               ? 'text-foreground'
               : !isPositive
-              ? 'text-red-600'
-              : 'text-primary'
+              ? 'text-red-600 dark:text-red-500'
+              : 'text-emerald-600 dark:text-emerald-500'
           )}
           style={{ fontFamily: 'var(--font-display)' }}
         >
@@ -96,13 +98,13 @@ export function StatCard({
         {trend !== undefined && (
           <div className="mt-1 flex items-center gap-1 text-xs">
             {trendIsPositive ? (
-              <TrendingUp className="h-3 w-3 text-emerald-500" />
+              <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-500" />
             ) : (
-              <TrendingDown className="h-3 w-3 text-red-500" />
+              <TrendingDown className="h-3 w-3 text-red-600 dark:text-red-500" />
             )}
             <span
               className={cn(
-                trendIsPositive ? 'text-emerald-600' : 'text-red-600'
+                trendIsPositive ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500'
               )}
             >
               {trendIsPositive ? '+' : ''}

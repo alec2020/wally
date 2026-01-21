@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   subcategory TEXT,
   merchant TEXT,
   is_transfer BOOLEAN DEFAULT FALSE,
+  subscription_frequency TEXT, -- NULL, 'monthly', or 'annual' for Subscriptions category
   notes TEXT,
   raw_data TEXT, -- original CSV row for reference
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -58,11 +59,52 @@ CREATE TABLE IF NOT EXISTS ai_settings (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Assets (car, watch, real estate, etc.)
+CREATE TABLE IF NOT EXISTS assets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,  -- 'vehicle', 'jewelry', 'real_estate', 'collectible', 'other'
+  purchase_price DECIMAL(10,2),
+  purchase_date DATE,
+  current_value DECIMAL(10,2) NOT NULL,
+  notes TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Liabilities (car loan, mortgage, etc.)
+CREATE TABLE IF NOT EXISTS liabilities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,  -- 'auto_loan', 'mortgage', 'personal_loan', 'student_loan', 'other'
+  original_amount DECIMAL(10,2) NOT NULL,
+  current_balance DECIMAL(10,2) NOT NULL,
+  interest_rate DECIMAL(5,3),
+  monthly_payment DECIMAL(10,2),
+  start_date DATE,
+  exclude_from_net_worth BOOLEAN DEFAULT FALSE,
+  notes TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Statement uploads (track uploaded PDF statement periods)
+CREATE TABLE IF NOT EXISTS statement_uploads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER REFERENCES accounts(id),
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  filename TEXT,
+  transaction_count INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
 CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_snapshots_month ON monthly_snapshots(month);
+CREATE INDEX IF NOT EXISTS idx_statement_uploads_account ON statement_uploads(account_id);
 
 -- Insert predefined categories
 INSERT OR IGNORE INTO categories (name, color, icon) VALUES

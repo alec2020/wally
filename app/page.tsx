@@ -21,7 +21,7 @@ import { generateFakeAnalytics } from '@/lib/fake-data';
 interface AnalyticsData {
   spendingByCategory: { category: string; total: number }[];
   currentMonthSpendingByCategory: { category: string; total: number }[];
-  monthlyTotals: { month: string; income: number; expenses: number }[];
+  monthlyTotals: { month: string; income: number; expenses: number; invested: number }[];
   monthlyExpensesByCategory: { month: string; category: string; total: number }[];
   totalBalance: number;
   currentNetWorth: number;
@@ -136,9 +136,10 @@ export default function Dashboard() {
         />
         <StatCard
           title="Expenses"
-          value={data.currentMonth.expenses}
+          value={Math.abs(data.currentMonth.expenses)}
           subtitle="This month"
           icon={TrendingDown}
+          variant="negative"
         />
         <StatCard
           title="Invested"

@@ -120,6 +120,7 @@ export function generateFakeAnalytics() {
         month,
         income: randomAmount(6000, 9000),
         expenses: -randomAmount(4000, 6500),
+        invested: randomAmount(500, 2000),
       };
     }).reverse(),
     monthlyExpensesByCategory: CATEGORIES.slice(0, 6).flatMap(category =>
@@ -135,7 +136,8 @@ export function generateFakeAnalytics() {
       })
     ),
     totalBalance: 95109.50,
-    currentNetWorth: 95109.50,
+    // Net worth = accounts (97450) + assets (41600) - liabilities not excluded (22000) = 117050
+    currentNetWorth: 117050,
     netWorthUpdatedAt: currentMonth,
     stats: {
       totalTransactions: 162,
@@ -281,4 +283,65 @@ export function generateFakeSnapshots() {
     netWorthHistory,
     currentNetWorth: 97450,
   };
+}
+
+export function generateFakeAssets() {
+  return [
+    {
+      id: 1,
+      name: '2022 Honda Accord',
+      type: 'vehicle' as const,
+      purchase_price: 28000,
+      purchase_date: '2022-03-15',
+      current_value: 25000,
+      notes: null,
+    },
+    {
+      id: 2,
+      name: 'Rolex Submariner',
+      type: 'jewelry' as const,
+      purchase_price: 9500,
+      purchase_date: '2021-06-01',
+      current_value: 12500,
+      notes: null,
+    },
+    {
+      id: 3,
+      name: 'Vintage Wine Collection',
+      type: 'collectible' as const,
+      purchase_price: 3200,
+      purchase_date: '2020-11-20',
+      current_value: 4100,
+      notes: null,
+    },
+  ];
+}
+
+export function generateFakeLiabilities() {
+  return [
+    {
+      id: 1,
+      name: 'Tesla Model 3 Loan',
+      type: 'auto_loan' as const,
+      original_amount: 45000,
+      current_balance: 32000,
+      interest_rate: 4.9,
+      monthly_payment: 650,
+      start_date: '2023-06-15',
+      exclude_from_net_worth: true,
+      notes: null,
+    },
+    {
+      id: 2,
+      name: 'Student Loan',
+      type: 'student_loan' as const,
+      original_amount: 35000,
+      current_balance: 22000,
+      interest_rate: 4.5,
+      monthly_payment: 320,
+      start_date: '2019-09-01',
+      exclude_from_net_worth: false,
+      notes: null,
+    },
+  ];
 }

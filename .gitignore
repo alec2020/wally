@@ -44,3 +44,9 @@ next-env.d.ts
 *.db
 *.db-shm
 *.db-wal
+
+# evaluation results
+/eval-results/
+
+# PDF statements (personal financial data)
+*.pdf

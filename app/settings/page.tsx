@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, Plus, Building2, Camera, Tag, X, Brain, Pencil, Check, Eye, EyeOff, Key, ExternalLink } from 'lucide-react';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeAccounts } from '@/lib/fake-data';
@@ -186,7 +187,6 @@ export default function SettingsPage() {
       const data = await response.json();
       setAiSettings(data);
 
-      // Set the model selector state
       if (data.settings?.model) {
         const isPreset = PRESET_MODELS.some((m) => m.id === data.settings.model);
         if (isPreset) {
@@ -212,12 +212,10 @@ export default function SettingsPage() {
       const model = isCustomModel ? customModelInput : selectedModel;
       const body: { openrouter_api_key?: string; model?: string } = {};
 
-      // Only include API key if user entered a new one
       if (apiKeyInput) {
         body.openrouter_api_key = apiKeyInput;
       }
 
-      // Always include the model
       body.model = model;
 
       const response = await fetch('/api/ai-settings', {
@@ -229,7 +227,7 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         setAiSettings(data);
-        setApiKeyInput(''); // Clear the input after saving
+        setApiKeyInput('');
         setAiSettingsSaved(true);
         setTimeout(() => setAiSettingsSaved(false), 3000);
       }
@@ -412,11 +410,11 @@ export default function SettingsPage() {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'bank':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
       case 'credit_card':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
       case 'brokerage':
-        return 'bg-primary/10 text-primary';
+        return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400';
       default:
         return 'bg-muted text-foreground';
     }
@@ -437,478 +435,477 @@ export default function SettingsPage() {
 
   return (
     <div className="p-8 max-w-4xl">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
         <p className="text-muted-foreground mt-1">Manage your accounts and preferences</p>
       </div>
 
-      {/* Accounts Section */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
+      <Tabs defaultValue="accounts" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="accounts" className="gap-2">
+            <Building2 className="h-4 w-4" />
             Accounts
-          </CardTitle>
-          <CardDescription>
-            Manage your bank accounts, credit cards, and investment accounts
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Existing Accounts */}
-          {isLoading ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-16 bg-muted rounded"></div>
-              <div className="h-16 bg-muted rounded"></div>
-            </div>
-          ) : accounts.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">
-              No accounts yet. Add your first account or upload a statement.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <div className="font-medium">{account.name}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge className={getTypeColor(account.type)}>
-                          {getTypeLabel(account.type)}
-                        </Badge>
-                        {account.institution && (
-                          <span className="text-sm text-muted-foreground">
-                            {account.institution}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium">
-                      {formatCurrency(account.balance)}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {account.transactionCount} transactions
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Add New Account */}
-          <div className="space-y-4">
-            <h4 className="font-medium">Add New Account</h4>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <Label htmlFor="accountName">Account Name</Label>
-                <Input
-                  id="accountName"
-                  value={newAccountName}
-                  onChange={(e) => setNewAccountName(e.target.value)}
-                  placeholder="e.g., Chase Checking"
-                />
-              </div>
-              <div className="w-40">
-                <Label htmlFor="accountType">Type</Label>
-                <select
-                  id="accountType"
-                  value={newAccountType}
-                  onChange={(e) => setNewAccountType(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                >
-                  <option value="bank">Bank</option>
-                  <option value="credit_card">Credit Card</option>
-                  <option value="brokerage">Brokerage</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <Button onClick={handleAddAccount}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Categories Section */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5" />
+          </TabsTrigger>
+          <TabsTrigger value="categories" className="gap-2">
+            <Tag className="h-4 w-4" />
             Categories
-          </CardTitle>
-          <CardDescription>
-            Manage transaction categories. AI will use these when categorizing new uploads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {isCategoriesLoading ? (
-            <div className="animate-pulse space-y-2">
-              <div className="h-8 bg-muted rounded w-1/2"></div>
-            </div>
-          ) : categories.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">
-              No categories found. Add your first category below.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 border rounded-full text-sm bg-card"
-                >
-                  {category.color && (
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: category.color }}
-                    />
-                  )}
-                  <span>{category.name}</span>
-                  <button
-                    onClick={() => handleDeleteCategory(category.id)}
-                    className="ml-1 p-0.5 hover:bg-muted rounded-full transition-colors"
-                  >
-                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                  </button>
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-2">
+            <Brain className="h-4 w-4" />
+            AI
+          </TabsTrigger>
+          <TabsTrigger value="general" className="gap-2">
+            <Camera className="h-4 w-4" />
+            General
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Accounts Tab */}
+        <TabsContent value="accounts">
+          <Card>
+            <CardHeader>
+              <CardTitle>Accounts</CardTitle>
+              <CardDescription>
+                Manage your bank accounts, credit cards, and investment accounts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoading ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="h-16 bg-muted rounded"></div>
+                  <div className="h-16 bg-muted rounded"></div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Add New Category */}
-          <div className="space-y-4">
-            <h4 className="font-medium">Add New Category</h4>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <Input
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="e.g., Pets, Education, Charity"
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-                />
-              </div>
-              <Button onClick={handleAddCategory}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Categorization Preferences Section */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            Categorization Preferences
-          </CardTitle>
-          <CardDescription>
-            Write natural language rules for how transactions should be processed. The AI will follow these when categorizing new uploads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* AI Capabilities */}
-          <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
-            <p className="font-medium">The AI can:</p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-1">
-              <li><span className="text-foreground">Assign categories</span> — "GEICO transactions are car insurance"</li>
-              <li><span className="text-foreground">Assign subcategories</span> — "Transactions at Smith's are Groceries / Supermarket"</li>
-              <li><span className="text-foreground">Mark as transfers</span> — "Payments to Amex are credit card payments, mark as transfers"</li>
-              <li><span className="text-foreground">Apply conditions</span> — "Venmo to Katlyn above $1200 should be housing"</li>
-              <li><span className="text-foreground">Clean merchant names</span> — "AMZN MKTP should be displayed as Amazon"</li>
-            </ul>
-          </div>
-
-          {/* Add New Preference */}
-          <div className="space-y-2">
-            <Label htmlFor="newPreference">Add a preference</Label>
-            <div className="flex gap-2">
-              <Input
-                id="newPreference"
-                value={newPreference}
-                onChange={(e) => setNewPreference(e.target.value)}
-                placeholder='e.g., "Robinhood withdrawals are investments, mark as transfers"'
-                onKeyDown={(e) => e.key === 'Enter' && handleAddPreference()}
-                className="flex-1"
-              />
-              <Button onClick={handleAddPreference}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add
-              </Button>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Existing Preferences */}
-          {isPreferencesLoading ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-12 bg-muted rounded"></div>
-              <div className="h-12 bg-muted rounded"></div>
-            </div>
-          ) : preferences.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">
-              No preferences yet. Add your first preference above, or correct a transaction's category to auto-learn preferences.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {preferences.map((pref) => (
-                <div
-                  key={pref.id}
-                  className="flex items-start justify-between p-3 border rounded-lg bg-card gap-3"
-                >
-                  {editingPreferenceId === pref.id ? (
-                    <div className="flex-1 flex gap-2">
-                      <Input
-                        value={editingPreferenceText}
-                        onChange={(e) => setEditingPreferenceText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSavePreference();
-                          if (e.key === 'Escape') handleCancelEdit();
-                        }}
-                        className="flex-1"
-                        autoFocus
-                      />
-                      <Button size="sm" onClick={handleSavePreference}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm">{pref.instruction}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant={pref.source === 'user' ? 'default' : 'outline'} className="text-xs">
-                            {pref.source === 'user' ? 'Custom' : 'Learned'}
-                          </Badge>
+              ) : accounts.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  No accounts yet. Add your first account or upload a statement.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {accounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <div className="font-medium">{account.name}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge className={getTypeColor(account.type)}>
+                              {getTypeLabel(account.type)}
+                            </Badge>
+                            {account.institution && (
+                              <span className="text-sm text-muted-foreground">
+                                {account.institution}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => handleEditPreference(pref)}
-                          className="p-2 hover:bg-muted rounded-md transition-colors"
-                          title="Edit this preference"
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePreference(pref.id)}
-                          className="p-2 hover:bg-muted rounded-md transition-colors"
-                          title="Remove this preference"
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                        </button>
+                      <div className="text-right">
+                        <div className="font-medium">
+                          {formatCurrency(account.balance)}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {account.transactionCount} transactions
+                        </div>
                       </div>
-                    </>
-                  )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-          {preferences.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              These preferences are sent to the AI when categorizing new transactions. "Learned" preferences are created automatically when you correct a transaction's category.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+              )}
 
-      {/* Screenshot Mode */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Camera className="h-5 w-5" />
-            Screenshot Mode
-          </CardTitle>
-          <CardDescription>
-            Display fake data for taking screenshots without revealing personal information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Enable Screenshot Mode</p>
-              <p className="text-sm text-muted-foreground">
-                {isScreenshotMode
-                  ? 'Currently showing fake data throughout the app'
-                  : 'Currently showing your real financial data'}
-              </p>
-            </div>
-            <Button
-              variant={isScreenshotMode ? 'default' : 'outline'}
-              onClick={() => setScreenshotMode(!isScreenshotMode)}
-            >
-              {isScreenshotMode ? 'Enabled' : 'Disabled'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <Separator />
 
-      {/* AI Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            AI Configuration
-          </CardTitle>
-          <CardDescription>
-            Configure OpenRouter for AI-powered transaction categorization.{' '}
-            <a
-              href="https://openrouter.ai/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline inline-flex items-center gap-1"
-            >
-              Get an API key <ExternalLink className="h-3 w-3" />
-            </a>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {isAiSettingsLoading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-10 bg-muted rounded"></div>
-              <div className="h-10 bg-muted rounded"></div>
-            </div>
-          ) : (
-            <>
-              {/* Status indicator */}
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    aiSettings.configured ? 'bg-green-500' : 'bg-amber-500'
-                  }`}
-                />
-                <span className="text-sm">
-                  {aiSettings.configured ? (
-                    <>
-                      AI categorization is <span className="font-medium text-green-600">enabled</span>
-                    </>
-                  ) : (
-                    <>
-                      AI categorization is <span className="font-medium text-amber-600">not configured</span> - using rule-based fallback
-                    </>
-                  )}
-                </span>
-              </div>
-
-              {/* API Key Input */}
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">OpenRouter API Key</Label>
-                {aiSettings.configured && !apiKeyInput && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <span>Current key: {aiSettings.openrouter_api_key_masked}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearApiKey}
-                      className="h-6 px-2 text-destructive hover:text-destructive"
+              <div className="space-y-4">
+                <h4 className="font-medium">Add New Account</h4>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="accountName">Account Name</Label>
+                    <Input
+                      id="accountName"
+                      value={newAccountName}
+                      onChange={(e) => setNewAccountName(e.target.value)}
+                      placeholder="e.g., Chase Checking"
+                    />
+                  </div>
+                  <div className="w-40">
+                    <Label htmlFor="accountType">Type</Label>
+                    <select
+                      id="accountType"
+                      value={newAccountType}
+                      onChange={(e) => setNewAccountType(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                     >
-                      Remove
+                      <option value="bank">Bank</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="brokerage">Brokerage</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button onClick={handleAddAccount}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add
                     </Button>
                   </div>
-                )}
-                <div className="relative">
-                  <Input
-                    id="apiKey"
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    placeholder={aiSettings.configured ? 'Enter new key to replace...' : 'sk-or-v1-...'}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              {/* Model Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="model">Model</Label>
-                <select
-                  id="model"
-                  value={isCustomModel ? 'custom' : selectedModel}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  {PRESET_MODELS.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} - {model.description}
-                    </option>
-                  ))}
-                  <option value="custom">Custom model...</option>
-                </select>
-
-                {isCustomModel && (
-                  <div className="mt-2">
-                    <Input
-                      value={customModelInput}
-                      onChange={(e) => setCustomModelInput(e.target.value)}
-                      placeholder="e.g., mistralai/mistral-large"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Enter any model ID from{' '}
-                      <a
-                        href="https://openrouter.ai/models"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
+        {/* Categories Tab */}
+        <TabsContent value="categories">
+          <Card>
+            <CardHeader>
+              <CardTitle>Categories</CardTitle>
+              <CardDescription>
+                Manage transaction categories. AI will use these when categorizing new uploads.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isCategoriesLoading ? (
+                <div className="animate-pulse space-y-2">
+                  <div className="h-8 bg-muted rounded w-1/2"></div>
+                </div>
+              ) : categories.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  No categories found. Add your first category below.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((category) => (
+                    <div
+                      key={category.id}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 border rounded-full text-sm bg-card"
+                    >
+                      {category.color && (
+                        <span
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                      )}
+                      <span>{category.name}</span>
+                      <button
+                        onClick={() => handleDeleteCategory(category.id)}
+                        className="ml-1 p-0.5 hover:bg-muted rounded-full transition-colors"
                       >
-                        OpenRouter models
-                      </a>
-                    </p>
+                        <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="font-medium">Add New Category</h4>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <Input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="e.g., Pets, Education, Charity"
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                    />
                   </div>
-                )}
+                  <Button onClick={handleAddCategory}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* AI Tab */}
+        <TabsContent value="ai" className="space-y-6">
+          {/* AI Configuration Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                API Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure OpenRouter for AI-powered transaction categorization.{' '}
+                <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-600 dark:text-emerald-500 hover:underline inline-flex items-center gap-1"
+                >
+                  Get an API key <ExternalLink className="h-3 w-3" />
+                </a>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isAiSettingsLoading ? (
+                <div className="animate-pulse space-y-4">
+                  <div className="h-10 bg-muted rounded"></div>
+                  <div className="h-10 bg-muted rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        aiSettings.configured ? 'bg-green-500' : 'bg-amber-500'
+                      }`}
+                    />
+                    <span className="text-sm">
+                      {aiSettings.configured ? (
+                        <>
+                          AI categorization is <span className="font-medium text-green-600 dark:text-green-500">enabled</span>
+                        </>
+                      ) : (
+                        <>
+                          AI categorization is <span className="font-medium text-amber-600 dark:text-amber-500">not configured</span> - using rule-based fallback
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">OpenRouter API Key</Label>
+                    {aiSettings.configured && !apiKeyInput && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                        <span>Current key: {aiSettings.openrouter_api_key_masked}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleClearApiKey}
+                          className="h-6 px-2 text-destructive hover:text-destructive"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                    <div className="relative">
+                      <Input
+                        id="apiKey"
+                        type={showApiKey ? 'text' : 'password'}
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        placeholder={aiSettings.configured ? 'Enter new key to replace...' : 'sk-or-v1-...'}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="model">Model</Label>
+                    <select
+                      id="model"
+                      value={isCustomModel ? 'custom' : selectedModel}
+                      onChange={(e) => handleModelChange(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      {PRESET_MODELS.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} - {model.description}
+                        </option>
+                      ))}
+                      <option value="custom">Custom model...</option>
+                    </select>
+
+                    {isCustomModel && (
+                      <div className="mt-2">
+                        <Input
+                          value={customModelInput}
+                          onChange={(e) => setCustomModelInput(e.target.value)}
+                          placeholder="e.g., mistralai/mistral-large"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter any model ID from{' '}
+                          <a
+                            href="https://openrouter.ai/models"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-600 dark:text-emerald-500 hover:underline"
+                          >
+                            OpenRouter models
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={handleSaveAiSettings}
+                      disabled={isSavingAiSettings || (!apiKeyInput && !aiSettings.configured)}
+                    >
+                      {isSavingAiSettings ? 'Saving...' : 'Save Settings'}
+                    </Button>
+                    {aiSettingsSaved && (
+                      <span className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
+                        <Check className="h-4 w-4" /> Saved
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Categorization Preferences Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                Categorization Rules
+              </CardTitle>
+              <CardDescription>
+                Write natural language rules for how transactions should be processed
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                <p className="font-medium">The AI can:</p>
+                <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-1">
+                  <li><span className="text-foreground">Assign categories</span> — "GEICO transactions are car insurance"</li>
+                  <li><span className="text-foreground">Assign subcategories</span> — "Transactions at Smith's are Groceries / Supermarket"</li>
+                  <li><span className="text-foreground">Mark as transfers</span> — "Payments to Amex are credit card payments, mark as transfers"</li>
+                  <li><span className="text-foreground">Apply conditions</span> — "Venmo to Katlyn above $1200 should be housing"</li>
+                  <li><span className="text-foreground">Clean merchant names</span> — "AMZN MKTP should be displayed as Amazon"</li>
+                </ul>
               </div>
 
-              {/* Save Button */}
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleSaveAiSettings}
-                  disabled={isSavingAiSettings || (!apiKeyInput && !aiSettings.configured)}
-                >
-                  {isSavingAiSettings ? 'Saving...' : 'Save Settings'}
-                </Button>
-                {aiSettingsSaved && (
-                  <span className="text-sm text-green-600 flex items-center gap-1">
-                    <Check className="h-4 w-4" /> Saved
-                  </span>
-                )}
+              <div className="space-y-2">
+                <Label htmlFor="newPreference">Add a rule</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="newPreference"
+                    value={newPreference}
+                    onChange={(e) => setNewPreference(e.target.value)}
+                    placeholder='e.g., "Robinhood withdrawals are investments, mark as transfers"'
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddPreference()}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleAddPreference}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add
+                  </Button>
+                </div>
               </div>
 
               <Separator />
 
-              <div className="text-sm text-muted-foreground space-y-2">
-                <p>
-                  <strong>Why OpenRouter?</strong> Access to many models (GPT-4, Claude, Llama, etc.) with a single API key.
-                  You can choose the model that works best for your needs and budget.
+              {isPreferencesLoading ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="h-12 bg-muted rounded"></div>
+                  <div className="h-12 bg-muted rounded"></div>
+                </div>
+              ) : preferences.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  No rules yet. Add your first rule above, or correct a transaction's category to auto-learn rules.
                 </p>
-                <p>
-                  Your preferences are included in the AI prompt to ensure consistent categorization according to your rules.
+              ) : (
+                <div className="space-y-2">
+                  {preferences.map((pref) => (
+                    <div
+                      key={pref.id}
+                      className="flex items-start justify-between p-3 border rounded-lg bg-card gap-3"
+                    >
+                      {editingPreferenceId === pref.id ? (
+                        <div className="flex-1 flex gap-2">
+                          <Input
+                            value={editingPreferenceText}
+                            onChange={(e) => setEditingPreferenceText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSavePreference();
+                              if (e.key === 'Escape') handleCancelEdit();
+                            }}
+                            className="flex-1"
+                            autoFocus
+                          />
+                          <Button size="sm" onClick={handleSavePreference}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">{pref.instruction}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant={pref.source === 'user' ? 'default' : 'outline'} className="text-xs">
+                                {pref.source === 'user' ? 'Custom' : 'Learned'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleEditPreference(pref)}
+                              className="p-2 hover:bg-muted rounded-md transition-colors"
+                              title="Edit this rule"
+                            >
+                              <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePreference(pref.id)}
+                              className="p-2 hover:bg-muted rounded-md transition-colors"
+                              title="Remove this rule"
+                            >
+                              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {preferences.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  These rules are sent to the AI when categorizing new transactions. "Learned" rules are created automatically when you correct a transaction's category.
                 </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* General Tab */}
+        <TabsContent value="general">
+          <Card>
+            <CardHeader>
+              <CardTitle>Screenshot Mode</CardTitle>
+              <CardDescription>
+                Display fake data for taking screenshots without revealing personal information
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Enable Screenshot Mode</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isScreenshotMode
+                      ? 'Currently showing fake data throughout the app'
+                      : 'Currently showing your real financial data'}
+                  </p>
+                </div>
+                <Button
+                  variant={isScreenshotMode ? 'default' : 'outline'}
+                  onClick={() => setScreenshotMode(!isScreenshotMode)}
+                >
+                  {isScreenshotMode ? 'Enabled' : 'Disabled'}
+                </Button>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

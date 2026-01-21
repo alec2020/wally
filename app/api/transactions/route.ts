@@ -5,7 +5,7 @@ import {
   updateTransaction,
   deleteTransaction,
   getTransactionStats,
-  addUserPreference,
+  upsertPreferenceForMerchant,
 } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -67,6 +67,7 @@ export async function PATCH(request: NextRequest) {
     updateTransaction(id, updates);
 
     // Learn from category corrections - generate a natural language preference
+    // Uses upsert to avoid duplicate rules for the same merchant
     if (updates.category && updates.category !== existing.category) {
       const merchantName = updates.merchant || existing.merchant || existing.description;
       const category = updates.category;
@@ -82,7 +83,7 @@ export async function PATCH(request: NextRequest) {
         instruction += ' (mark as transfer)';
       }
 
-      addUserPreference(instruction, 'learned');
+      upsertPreferenceForMerchant(merchantName, instruction, 'learned');
     }
 
     const updated = getTransactionById(id);

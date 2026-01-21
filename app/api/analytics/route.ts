@@ -12,6 +12,8 @@ import {
   getSubscriptions,
   getMonthlySavingsRate,
   getMerchantFrequency,
+  getAssets,
+  getLiabilities,
 } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -31,7 +33,15 @@ export async function GET(request: NextRequest) {
     const subscriptions = getSubscriptions(2);
     const savingsRateData = getMonthlySavingsRate(12);
     const merchantFrequency = getMerchantFrequency(20);
-    const currentNetWorth = latestBalances.reduce((sum, b) => sum + b.balance, 0);
+    // Calculate net worth including assets and liabilities
+    const accountsTotal = latestBalances.reduce((sum, b) => sum + b.balance, 0);
+    const assets = getAssets();
+    const liabilities = getLiabilities();
+    const totalAssetsValue = assets.reduce((sum, a) => sum + a.current_value, 0);
+    const liabilitiesForNetWorth = liabilities
+      .filter((l) => !l.exclude_from_net_worth)
+      .reduce((sum, l) => sum + l.current_balance, 0);
+    const currentNetWorth = accountsTotal + totalAssetsValue - liabilitiesForNetWorth;
     const netWorthUpdatedAt = latestBalances.length > 0
       ? latestBalances.reduce((latest, b) => b.month > latest ? b.month : latest, latestBalances[0].month)
       : null;

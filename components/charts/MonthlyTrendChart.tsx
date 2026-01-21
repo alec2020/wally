@@ -16,6 +16,7 @@ interface MonthlyData {
   month: string;
   income: number;
   expenses: number;
+  invested: number;
 }
 
 interface MonthlyTrendChartProps {
@@ -31,6 +32,10 @@ const chartConfig = {
     label: 'Expenses',
     color: '#ef4444',
   },
+  invested: {
+    label: 'Invested',
+    color: '#3b82f6',
+  },
 } satisfies ChartConfig;
 
 export function MonthlyTrendChart({ data }: MonthlyTrendChartProps) {
@@ -38,6 +43,7 @@ export function MonthlyTrendChart({ data }: MonthlyTrendChartProps) {
     month: formatMonth(item.month),
     income: item.income,
     expenses: Math.abs(item.expenses),
+    invested: item.invested,
   }));
 
   if (chartData.length === 0) {
@@ -60,18 +66,33 @@ export function MonthlyTrendChart({ data }: MonthlyTrendChartProps) {
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <AreaChart data={chartData} accessibilityLayer>
+          <AreaChart data={chartData} accessibilityLayer margin={{ left: -5 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
+              interval={0}
+              tick={({ x, y, payload, index }) => (
+                <text
+                  x={x}
+                  y={y}
+                  dy={12}
+                  fontSize={12}
+                  textAnchor={index === chartData.length - 1 ? 'end' : index === 0 ? 'start' : 'middle'}
+                  fill="currentColor"
+                  className="text-muted-foreground"
+                >
+                  {payload.value}
+                </text>
+              )}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
+              tickMargin={4}
+              width={40}
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
             />
             <ChartTooltip
@@ -96,6 +117,14 @@ export function MonthlyTrendChart({ data }: MonthlyTrendChartProps) {
               stackId="2"
               stroke="var(--color-expenses)"
               fill="var(--color-expenses)"
+              fillOpacity={0.3}
+            />
+            <Area
+              type="monotone"
+              dataKey="invested"
+              stackId="3"
+              stroke="var(--color-invested)"
+              fill="var(--color-invested)"
               fillOpacity={0.3}
             />
           </AreaChart>

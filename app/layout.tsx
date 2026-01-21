@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Space_Grotesk, IBM_Plex_Mono } from "next/font/googl
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { ScreenshotModeProvider } from "@/lib/screenshot-mode";
+import { ThemeProvider } from "@/lib/theme-provider";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -34,18 +35,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${plusJakarta.variable} ${ibmPlexMono.variable} ${spaceGrotesk.variable} font-sans antialiased`}
       >
-        <ScreenshotModeProvider>
-          <div className="flex h-screen">
-            <Sidebar />
-            <main className="flex-1 overflow-auto bg-background">
-              {children}
-            </main>
-          </div>
-        </ScreenshotModeProvider>
+        <ThemeProvider>
+          <ScreenshotModeProvider>
+            <div className="flex h-screen">
+              <Sidebar />
+              <main className="flex-1 overflow-auto bg-background">
+                {children}
+              </main>
+            </div>
+          </ScreenshotModeProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

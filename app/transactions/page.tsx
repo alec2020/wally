@@ -14,6 +14,7 @@ interface Transaction {
   subcategory: string | null;
   merchant: string | null;
   is_transfer: boolean;
+  subscription_frequency: 'monthly' | 'annual' | null;
   account_id: number | null;
   account_name: string | null;
 }

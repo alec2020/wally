@@ -18,6 +18,74 @@ export function getDb(): Database.Database {
       const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
       db.exec(schema);
     }
+
+    // Migration: Add subscription_frequency column if it doesn't exist
+    const columnCheck = db.prepare("SELECT * FROM pragma_table_info('transactions') WHERE name = 'subscription_frequency'").get();
+    if (!columnCheck) {
+      db.exec("ALTER TABLE transactions ADD COLUMN subscription_frequency TEXT");
+    }
+
+    // Migration: Create assets table if it doesn't exist
+    const assetsTableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='assets'").get();
+    if (!assetsTableCheck) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS assets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          purchase_price DECIMAL(10,2),
+          purchase_date DATE,
+          current_value DECIMAL(10,2) NOT NULL,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
+
+    // Migration: Create liabilities table if it doesn't exist
+    const liabilitiesTableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='liabilities'").get();
+    if (!liabilitiesTableCheck) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS liabilities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          original_amount DECIMAL(10,2) NOT NULL,
+          current_balance DECIMAL(10,2) NOT NULL,
+          interest_rate DECIMAL(5,3),
+          monthly_payment DECIMAL(10,2),
+          start_date DATE,
+          exclude_from_net_worth BOOLEAN DEFAULT FALSE,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
+
+    // Migration: Add exclude_from_net_worth column to liabilities if it doesn't exist
+    const excludeColumnCheck = db.prepare("SELECT * FROM pragma_table_info('liabilities') WHERE name = 'exclude_from_net_worth'").get();
+    if (!excludeColumnCheck) {
+      db.exec("ALTER TABLE liabilities ADD COLUMN exclude_from_net_worth BOOLEAN DEFAULT FALSE");
+    }
+
+    // Migration: Create statement_uploads table if it doesn't exist
+    const statementUploadsCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='statement_uploads'").get();
+    if (!statementUploadsCheck) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS statement_uploads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id INTEGER REFERENCES accounts(id),
+          period_start DATE NOT NULL,
+          period_end DATE NOT NULL,
+          filename TEXT,
+          transaction_count INTEGER,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_statement_uploads_account ON statement_uploads(account_id);
+      `);
+    }
   }
   return db;
 }
@@ -57,6 +125,7 @@ export interface Transaction {
   subcategory: string | null;
   merchant: string | null;
   is_transfer: boolean;
+  subscription_frequency: 'monthly' | 'annual' | null;
   notes: string | null;
   raw_data: string | null;
   created_at: string;
@@ -188,6 +257,10 @@ export function updateTransaction(id: number, updates: Partial<Transaction>): vo
     fields.push('is_transfer = ?');
     params.push(updates.is_transfer ? 1 : 0);
   }
+  if (updates.subscription_frequency !== undefined) {
+    fields.push('subscription_frequency = ?');
+    params.push(updates.subscription_frequency);
+  }
   if (updates.notes !== undefined) {
     fields.push('notes = ?');
     params.push(updates.notes);
@@ -264,6 +337,27 @@ export function addUserPreference(instruction: string, source: string = 'user'):
     VALUES (?, ?)
   `).run(instruction, source);
   return result.lastInsertRowid as number;
+}
+
+export function findPreferenceByMerchant(merchantName: string): UserPreference | undefined {
+  // Find a preference that starts with the same merchant pattern
+  // e.g., '"Root Insurance" should be categorized as...'
+  const pattern = `"${merchantName}" should be categorized as%`;
+  return getDb().prepare(
+    'SELECT * FROM user_preferences WHERE instruction LIKE ? LIMIT 1'
+  ).get(pattern) as UserPreference | undefined;
+}
+
+export function upsertPreferenceForMerchant(merchantName: string, instruction: string, source: string = 'learned'): number {
+  const existing = findPreferenceByMerchant(merchantName);
+  if (existing) {
+    // Update existing preference
+    updateUserPreference(existing.id, instruction);
+    return existing.id;
+  } else {
+    // Create new preference
+    return addUserPreference(instruction, source);
+  }
 }
 
 export function updateUserPreference(id: number, instruction: string): void {
@@ -345,12 +439,13 @@ export function getSpendingByCategory(startDate?: string, endDate?: string): { c
   return getDb().prepare(query).all(...params) as { category: string; total: number }[];
 }
 
-export function getMonthlyTotals(startDate?: string, endDate?: string): { month: string; income: number; expenses: number }[] {
+export function getMonthlyTotals(startDate?: string, endDate?: string): { month: string; income: number; expenses: number; invested: number }[] {
   let query = `
     SELECT
       strftime('%Y-%m', date) as month,
       SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND (category IS NULL OR category != 'Financial') THEN amount ELSE 0 END) as income,
-      SUM(CASE WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount ELSE 0 END) as expenses
+      SUM(CASE WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount ELSE 0 END) as expenses,
+      SUM(CASE WHEN category = 'Investing' THEN ABS(amount) ELSE 0 END) as invested
     FROM transactions
     WHERE 1=1
   `;
@@ -366,7 +461,7 @@ export function getMonthlyTotals(startDate?: string, endDate?: string): { month:
   }
 
   query += ' GROUP BY strftime(\'%Y-%m\', date) ORDER BY month DESC LIMIT 12';
-  return getDb().prepare(query).all(...params) as { month: string; income: number; expenses: number }[];
+  return getDb().prepare(query).all(...params) as { month: string; income: number; expenses: number; invested: number }[];
 }
 
 export function getTopMerchants(limit: number = 10, startDate?: string, endDate?: string): { merchant: string; total: number; count: number }[] {
@@ -522,16 +617,30 @@ export interface Subscription {
   lastSeen: string;
 }
 
+// Normalize merchant names for better grouping
+function normalizeMerchantName(name: string): string {
+  return name
+    .toUpperCase()
+    // Remove common suffixes
+    .replace(/\s*(USA|INC|LLC|CORP|CO|LTD|LIMITED|MEMBERSHIP|SUBSCRIPTION|MONTHLY|ANNUAL|RECURRING)\.?\s*/g, ' ')
+    // Remove special characters except spaces
+    .replace(/[^A-Z0-9\s]/g, '')
+    // Collapse multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function getSubscriptions(minOccurrences: number = 1): Subscription[] {
   // Find subscriptions - merchants in Subscriptions category
-  // Detect billing cycle based on frequency over the data period
+  // Use manual subscription_frequency if set, otherwise auto-detect
   const results = getDb().prepare(`
     WITH subscription_data AS (
       SELECT
         COALESCE(merchant, description) as merchant,
         ABS(amount) as amount,
         date,
-        strftime('%Y-%m', date) as month
+        strftime('%Y-%m', date) as month,
+        subscription_frequency
       FROM transactions
       WHERE amount < 0 AND is_transfer = 0 AND category = 'Subscriptions'
     ),
@@ -543,6 +652,11 @@ export function getSubscriptions(minOccurrences: number = 1): Subscription[] {
         COUNT(DISTINCT month) as monthsWithPayments,
         MIN(date) as firstSeen,
         MAX(date) as lastSeen,
+        -- Get the most recent manual frequency setting for this merchant
+        (SELECT subscription_frequency FROM subscription_data sd2
+         WHERE sd2.merchant = subscription_data.merchant
+         AND sd2.subscription_frequency IS NOT NULL
+         ORDER BY sd2.date DESC LIMIT 1) as manualFrequency,
         -- Calculate months spanned
         CAST((julianday(MAX(date)) - julianday(MIN(date))) / 30.0 AS INTEGER) + 1 as monthsSpanned
       FROM subscription_data
@@ -554,11 +668,12 @@ export function getSubscriptions(minOccurrences: number = 1): Subscription[] {
       totalPayments,
       monthsWithPayments,
       monthsSpanned,
-      lastSeen
+      lastSeen,
+      manualFrequency
     FROM merchant_stats
     WHERE totalPayments >= ?
     ORDER BY avgAmount DESC
-    LIMIT 30
+    LIMIT 50
   `).all(minOccurrences) as {
     merchant: string;
     avgAmount: number;
@@ -566,43 +681,80 @@ export function getSubscriptions(minOccurrences: number = 1): Subscription[] {
     monthsWithPayments: number;
     monthsSpanned: number;
     lastSeen: string;
+    manualFrequency: 'monthly' | 'annual' | null;
   }[];
 
-  return results.map(row => {
-    // Determine billing cycle based on payment frequency
-    // If payments per month ratio is close to 1, it's monthly
-    // If payments per month ratio is close to 0.25, it's quarterly
-    // If payments per month ratio is close to 0.083 (1/12), it's annual
-    const paymentsPerMonth = row.monthsSpanned > 0
-      ? row.totalPayments / row.monthsSpanned
-      : row.totalPayments;
+  // Group similar merchants by normalized name
+  const groupedByNormalized = new Map<string, typeof results>();
+
+  for (const row of results) {
+    const normalized = normalizeMerchantName(row.merchant);
+    if (!groupedByNormalized.has(normalized)) {
+      groupedByNormalized.set(normalized, []);
+    }
+    groupedByNormalized.get(normalized)!.push(row);
+  }
+
+  // Merge grouped merchants
+  const mergedResults: Subscription[] = [];
+
+  for (const [, group] of groupedByNormalized) {
+    // Use the shortest merchant name as the display name (usually cleanest)
+    const displayName = group.reduce((shortest, row) =>
+      row.merchant.length < shortest.length ? row.merchant : shortest
+    , group[0].merchant);
+
+    // Sum up stats across all variations
+    const totalPayments = group.reduce((sum, row) => sum + row.totalPayments, 0);
+    const totalAmount = group.reduce((sum, row) => sum + row.avgAmount * row.totalPayments, 0);
+    const avgAmount = totalAmount / totalPayments;
+    const lastSeen = group.reduce((latest, row) =>
+      row.lastSeen > latest ? row.lastSeen : latest
+    , group[0].lastSeen);
+    const monthsSpanned = Math.max(...group.map(row => row.monthsSpanned));
+
+    // Use manual frequency if any variation has it set
+    const manualFrequency = group.find(row => row.manualFrequency)?.manualFrequency || null;
 
     let billingCycle: 'monthly' | 'annual' | 'quarterly';
     let monthlyAmount: number;
 
-    if (paymentsPerMonth >= 0.8) {
-      // Roughly monthly (at least 80% of months have a payment)
-      billingCycle = 'monthly';
-      monthlyAmount = row.avgAmount;
-    } else if (paymentsPerMonth >= 0.2) {
-      // Roughly quarterly
-      billingCycle = 'quarterly';
-      monthlyAmount = row.avgAmount / 3;
+    if (manualFrequency) {
+      billingCycle = manualFrequency;
+      monthlyAmount = manualFrequency === 'annual'
+        ? avgAmount / 12
+        : avgAmount;
     } else {
-      // Annual or less frequent
-      billingCycle = 'annual';
-      monthlyAmount = row.avgAmount / 12;
+      const paymentsPerMonth = monthsSpanned > 0
+        ? totalPayments / monthsSpanned
+        : totalPayments;
+
+      if (paymentsPerMonth >= 0.8) {
+        billingCycle = 'monthly';
+        monthlyAmount = avgAmount;
+      } else if (paymentsPerMonth >= 0.2) {
+        billingCycle = 'quarterly';
+        monthlyAmount = avgAmount / 3;
+      } else {
+        billingCycle = 'annual';
+        monthlyAmount = avgAmount / 12;
+      }
     }
 
-    return {
-      merchant: row.merchant,
-      avgAmount: row.avgAmount,
+    mergedResults.push({
+      merchant: displayName,
+      avgAmount,
       monthlyAmount,
-      frequency: row.totalPayments,
+      frequency: totalPayments,
       billingCycle,
-      lastSeen: row.lastSeen,
-    };
-  });
+      lastSeen,
+    });
+  }
+
+  // Sort by monthly amount descending and limit to 30
+  return mergedResults
+    .sort((a, b) => b.avgAmount - a.avgAmount)
+    .slice(0, 30);
 }
 
 // Savings Rate by Month
@@ -696,4 +848,314 @@ export function getAllAiSettings(): Record<string, string> {
 
 export function deleteAiSetting(key: string): void {
   getDb().prepare('DELETE FROM ai_settings WHERE setting_key = ?').run(key);
+}
+
+// Asset operations
+export type AssetType = 'vehicle' | 'jewelry' | 'real_estate' | 'collectible' | 'other';
+
+export interface Asset {
+  id: number;
+  name: string;
+  type: AssetType;
+  purchase_price: number | null;
+  purchase_date: string | null;
+  current_value: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getAssets(): Asset[] {
+  return getDb().prepare('SELECT * FROM assets ORDER BY current_value DESC').all() as Asset[];
+}
+
+export function getAssetById(id: number): Asset | undefined {
+  return getDb().prepare('SELECT * FROM assets WHERE id = ?').get(id) as Asset | undefined;
+}
+
+export function createAsset(asset: Omit<Asset, 'id' | 'created_at' | 'updated_at'>): number {
+  const result = getDb().prepare(`
+    INSERT INTO assets (name, type, purchase_price, purchase_date, current_value, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    asset.name,
+    asset.type,
+    asset.purchase_price,
+    asset.purchase_date,
+    asset.current_value,
+    asset.notes
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function updateAsset(id: number, updates: Partial<Omit<Asset, 'id' | 'created_at' | 'updated_at'>>): void {
+  const fields: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (updates.name !== undefined) {
+    fields.push('name = ?');
+    params.push(updates.name);
+  }
+  if (updates.type !== undefined) {
+    fields.push('type = ?');
+    params.push(updates.type);
+  }
+  if (updates.purchase_price !== undefined) {
+    fields.push('purchase_price = ?');
+    params.push(updates.purchase_price);
+  }
+  if (updates.purchase_date !== undefined) {
+    fields.push('purchase_date = ?');
+    params.push(updates.purchase_date);
+  }
+  if (updates.current_value !== undefined) {
+    fields.push('current_value = ?');
+    params.push(updates.current_value);
+  }
+  if (updates.notes !== undefined) {
+    fields.push('notes = ?');
+    params.push(updates.notes);
+  }
+
+  if (fields.length > 0) {
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+    getDb().prepare(`UPDATE assets SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+  }
+}
+
+export function deleteAsset(id: number): void {
+  getDb().prepare('DELETE FROM assets WHERE id = ?').run(id);
+}
+
+export function getTotalAssetsValue(): number {
+  const result = getDb().prepare('SELECT SUM(current_value) as total FROM assets').get() as { total: number } | undefined;
+  return result?.total || 0;
+}
+
+// Liability operations
+export type LiabilityType = 'auto_loan' | 'mortgage' | 'personal_loan' | 'student_loan' | 'other';
+
+export interface Liability {
+  id: number;
+  name: string;
+  type: LiabilityType;
+  original_amount: number;
+  current_balance: number;
+  interest_rate: number | null;
+  monthly_payment: number | null;
+  start_date: string | null;
+  exclude_from_net_worth: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getLiabilities(): Liability[] {
+  return getDb().prepare('SELECT * FROM liabilities ORDER BY current_balance DESC').all() as Liability[];
+}
+
+export function getLiabilityById(id: number): Liability | undefined {
+  return getDb().prepare('SELECT * FROM liabilities WHERE id = ?').get(id) as Liability | undefined;
+}
+
+export function createLiability(liability: Omit<Liability, 'id' | 'created_at' | 'updated_at'>): number {
+  const result = getDb().prepare(`
+    INSERT INTO liabilities (name, type, original_amount, current_balance, interest_rate, monthly_payment, start_date, exclude_from_net_worth, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    liability.name,
+    liability.type,
+    liability.original_amount,
+    liability.current_balance,
+    liability.interest_rate,
+    liability.monthly_payment,
+    liability.start_date,
+    liability.exclude_from_net_worth ? 1 : 0,
+    liability.notes
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function updateLiability(id: number, updates: Partial<Omit<Liability, 'id' | 'created_at' | 'updated_at'>>): void {
+  const fields: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (updates.name !== undefined) {
+    fields.push('name = ?');
+    params.push(updates.name);
+  }
+  if (updates.type !== undefined) {
+    fields.push('type = ?');
+    params.push(updates.type);
+  }
+  if (updates.original_amount !== undefined) {
+    fields.push('original_amount = ?');
+    params.push(updates.original_amount);
+  }
+  if (updates.current_balance !== undefined) {
+    fields.push('current_balance = ?');
+    params.push(updates.current_balance);
+  }
+  if (updates.interest_rate !== undefined) {
+    fields.push('interest_rate = ?');
+    params.push(updates.interest_rate);
+  }
+  if (updates.monthly_payment !== undefined) {
+    fields.push('monthly_payment = ?');
+    params.push(updates.monthly_payment);
+  }
+  if (updates.start_date !== undefined) {
+    fields.push('start_date = ?');
+    params.push(updates.start_date);
+  }
+  if (updates.exclude_from_net_worth !== undefined) {
+    fields.push('exclude_from_net_worth = ?');
+    params.push(updates.exclude_from_net_worth ? 1 : 0);
+  }
+  if (updates.notes !== undefined) {
+    fields.push('notes = ?');
+    params.push(updates.notes);
+  }
+
+  if (fields.length > 0) {
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+    getDb().prepare(`UPDATE liabilities SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+  }
+}
+
+export function deleteLiability(id: number): void {
+  getDb().prepare('DELETE FROM liabilities WHERE id = ?').run(id);
+}
+
+export function getTotalLiabilitiesBalance(): number {
+  const result = getDb().prepare('SELECT SUM(current_balance) as total FROM liabilities').get() as { total: number } | undefined;
+  return result?.total || 0;
+}
+
+// Statement upload operations
+export interface StatementUpload {
+  id: number;
+  account_id: number;
+  period_start: string;
+  period_end: string;
+  filename: string | null;
+  transaction_count: number | null;
+  created_at: string;
+}
+
+export function createStatementUpload(data: {
+  accountId: number;
+  periodStart: string;
+  periodEnd: string;
+  filename?: string;
+  transactionCount?: number;
+}): number {
+  const result = getDb().prepare(`
+    INSERT INTO statement_uploads (account_id, period_start, period_end, filename, transaction_count)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    data.accountId,
+    data.periodStart,
+    data.periodEnd,
+    data.filename || null,
+    data.transactionCount || null
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function getStatementUploads(accountId?: number): StatementUpload[] {
+  if (accountId) {
+    return getDb().prepare(
+      'SELECT * FROM statement_uploads WHERE account_id = ? ORDER BY period_start DESC'
+    ).all(accountId) as StatementUpload[];
+  }
+  return getDb().prepare(
+    'SELECT * FROM statement_uploads ORDER BY period_start DESC'
+  ).all() as StatementUpload[];
+}
+
+export interface AccountCoverage {
+  id: number;
+  name: string;
+  type: string;
+  institution: string | null;
+  coverage: Record<string, boolean>;
+  statements: Array<{ periodStart: string; periodEnd: string }>;
+}
+
+// Parse YYYY-MM-DD string to year, month, day without timezone issues
+function parseDateString(dateStr: string): { year: number; month: number; day: number } {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return { year, month, day };
+}
+
+export function getAccountCoverage(): {
+  accounts: AccountCoverage[];
+  months: string[];
+} {
+  // Get last 12 months
+  const months: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+
+  // Get all accounts that have at least one statement upload
+  const accountsWithStatements = getDb().prepare(`
+    SELECT DISTINCT a.id, a.name, a.type, a.institution
+    FROM accounts a
+    INNER JOIN statement_uploads su ON a.id = su.account_id
+    ORDER BY a.name
+  `).all() as Array<{ id: number; name: string; type: string; institution: string | null }>;
+
+  const accounts: AccountCoverage[] = accountsWithStatements.map(account => {
+    // Get all statement uploads for this account
+    const statements = getDb().prepare(`
+      SELECT period_start, period_end
+      FROM statement_uploads
+      WHERE account_id = ?
+      ORDER BY period_start DESC
+    `).all(account.id) as Array<{ period_start: string; period_end: string }>;
+
+    // Determine coverage for each month
+    const coverage: Record<string, boolean> = {};
+    for (const month of months) {
+      // Parse month as YYYY-MM
+      const [monthYear, monthNum] = month.split('-').map(Number);
+      // Month boundaries (1-indexed month)
+      const monthStartDay = 1;
+      const monthEndDay = new Date(monthYear, monthNum, 0).getDate(); // Last day of month
+
+      coverage[month] = statements.some(stmt => {
+        const stmtStart = parseDateString(stmt.period_start);
+        const stmtEnd = parseDateString(stmt.period_end);
+
+        // Convert to comparable numbers (YYYYMMDD format)
+        const monthStartNum = monthYear * 10000 + monthNum * 100 + monthStartDay;
+        const monthEndNum = monthYear * 10000 + monthNum * 100 + monthEndDay;
+        const stmtStartNum = stmtStart.year * 10000 + stmtStart.month * 100 + stmtStart.day;
+        const stmtEndNum = stmtEnd.year * 10000 + stmtEnd.month * 100 + stmtEnd.day;
+
+        // Check if statement period overlaps with the month
+        return stmtStartNum <= monthEndNum && stmtEndNum >= monthStartNum;
+      });
+    }
+
+    return {
+      id: account.id,
+      name: account.name,
+      type: account.type,
+      institution: account.institution,
+      coverage,
+      statements: statements.map(s => ({
+        periodStart: s.period_start,
+        periodEnd: s.period_end,
+      })),
+    };
+  });
+
+  return { accounts, months };
 }

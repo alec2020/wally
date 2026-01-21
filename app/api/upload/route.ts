@@ -5,8 +5,10 @@ import {
   getAccounts,
   createTransactionsBatch,
   isDuplicateTransaction,
+  createStatementUpload,
 } from '@/lib/db';
 import { categorizeTransactions, categorizeWithRules } from '@/lib/categorize';
+import { processPDF } from '@/lib/parsers/pdf';
 
 // Transaction import endpoint - accepts pre-categorized transactions from preview
 export async function POST(request: NextRequest) {
@@ -18,6 +20,9 @@ export async function POST(request: NextRequest) {
       accountName,
       accountType,
       institution,
+      statementPeriodStart,
+      statementPeriodEnd,
+      filename,
     } = body;
 
     if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -71,11 +76,23 @@ export async function POST(request: NextRequest) {
       subcategory: tx.subcategory || null,
       merchant: tx.merchant || null,
       is_transfer: tx.isTransfer || false,
+      subscription_frequency: null,
       notes: null,
       raw_data: tx.rawData || null,
     }));
 
     const inserted = createTransactionsBatch(dbTransactions);
+
+    // Save statement upload record if we have period dates
+    if (accountId && statementPeriodStart && statementPeriodEnd) {
+      createStatementUpload({
+        accountId,
+        periodStart: statementPeriodStart,
+        periodEnd: statementPeriodEnd,
+        filename: filename || undefined,
+        transactionCount: inserted,
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -106,6 +123,64 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const fileName = file.name.toLowerCase();
+    const isPDF = fileName.endsWith('.pdf');
+
+    // Define the shape of categorized transactions
+    interface CategorizedTransaction {
+      date: string;
+      description: string;
+      amount: number;
+      category: string | null;
+      subcategory: string | null;
+      merchant: string | null;
+      isTransfer: boolean;
+      rawData: string;
+    }
+
+    // Handle PDF files
+    if (isPDF) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfResult = await processPDF(arrayBuffer);
+
+      if (!pdfResult.success) {
+        return NextResponse.json({
+          detected: false,
+          institution: pdfResult.institution,
+          parserName: 'PDF Statement',
+          success: false,
+          error: pdfResult.error,
+          transactionCount: 0,
+          duplicateCount: 0,
+          transactions: [],
+          accountType: pdfResult.accountType,
+        });
+      }
+
+      // Mark duplicates
+      const transactionsWithDuplicateFlag = pdfResult.transactions.map((tx) => ({
+        ...tx,
+        isDuplicate: isDuplicateTransaction(tx.date, tx.amount, tx.description),
+      }));
+
+      const duplicateCount = transactionsWithDuplicateFlag.filter((tx) => tx.isDuplicate).length;
+      const newTransactions = transactionsWithDuplicateFlag.filter((tx) => !tx.isDuplicate);
+
+      return NextResponse.json({
+        detected: true,
+        institution: pdfResult.institution,
+        parserName: `${pdfResult.institution} PDF`,
+        success: true,
+        transactionCount: pdfResult.transactions.length,
+        duplicateCount,
+        transactions: newTransactions,
+        accountType: pdfResult.accountType,
+        statementPeriodStart: pdfResult.statementPeriodStart,
+        statementPeriodEnd: pdfResult.statementPeriodEnd,
+      });
+    }
+
+    // Handle CSV files (existing logic)
     const csvContent = await file.text();
 
     // Detect format
@@ -136,18 +211,6 @@ export async function PUT(request: NextRequest) {
 
     const duplicateCount = transactionsWithDuplicateFlag.filter((tx) => tx.isDuplicate).length;
     const newTransactions = transactionsWithDuplicateFlag.filter((tx) => !tx.isDuplicate);
-
-    // Define the shape of categorized transactions
-    interface CategorizedTransaction {
-      date: string;
-      description: string;
-      amount: number;
-      category: string | null;
-      subcategory: string | null;
-      merchant: string | null;
-      isTransfer: boolean;
-      rawData: string;
-    }
 
     // Categorize all non-duplicate transactions
     let categorizedTransactions: CategorizedTransaction[] = newTransactions.map(tx => ({

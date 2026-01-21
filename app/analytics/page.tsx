@@ -275,7 +275,7 @@ export default function AnalyticsPage() {
                   <Button
                     variant={preset === 'this-month' ? 'default' : 'outline'}
                     size="sm"
-                    className={preset === 'this-month' ? 'bg-gray-900' : ''}
+                    className={preset === 'this-month' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => {
                       setCurrentMonth(new Date());
                       setPreset('this-month');
@@ -286,7 +286,7 @@ export default function AnalyticsPage() {
                   <Button
                     variant={preset === 'last-month' ? 'default' : 'outline'}
                     size="sm"
-                    className={preset === 'last-month' ? 'bg-gray-900' : ''}
+                    className={preset === 'last-month' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => setPreset('last-month')}
                   >
                     Last Month
@@ -294,7 +294,7 @@ export default function AnalyticsPage() {
                   <Button
                     variant={preset === 'last-3-months' ? 'default' : 'outline'}
                     size="sm"
-                    className={preset === 'last-3-months' ? 'bg-gray-900' : ''}
+                    className={preset === 'last-3-months' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => setPreset('last-3-months')}
                   >
                     Last 3 Months
@@ -302,7 +302,7 @@ export default function AnalyticsPage() {
                   <Button
                     variant={preset === 'last-6-months' ? 'default' : 'outline'}
                     size="sm"
-                    className={preset === 'last-6-months' ? 'bg-gray-900' : ''}
+                    className={preset === 'last-6-months' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => setPreset('last-6-months')}
                   >
                     Last 6 Months
@@ -310,7 +310,7 @@ export default function AnalyticsPage() {
                   <Button
                     variant={preset === 'this-year' ? 'default' : 'outline'}
                     size="sm"
-                    className={preset === 'this-year' ? 'bg-gray-900' : ''}
+                    className={preset === 'this-year' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => setPreset('this-year')}
                   >
                     This Year
@@ -318,7 +318,7 @@ export default function AnalyticsPage() {
                   <Button
                     variant={preset === 'all' ? 'default' : 'outline'}
                     size="sm"
-                    className={preset === 'all' ? 'bg-gray-900' : ''}
+                    className={preset === 'all' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => setPreset('all')}
                   >
                     All Time
@@ -491,13 +491,13 @@ export default function AnalyticsPage() {
                     <div className="flex gap-6">
                       <div className="text-right">
                         <div className="text-xs text-muted-foreground uppercase tracking-wide">Income</div>
-                        <div className="font-semibold text-primary">
+                        <div className="font-semibold text-emerald-600 dark:text-emerald-500">
                           {formatCurrency(month.income)}
                         </div>
                         {month.incomeChange !== 0 && (
                           <div className={cn(
                             'text-xs font-medium',
-                            month.incomeChange > 0 ? 'text-primary' : 'text-red-500'
+                            month.incomeChange > 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500'
                           )}>
                             {month.incomeChange > 0 ? '+' : ''}{month.incomeChange.toFixed(1)}%
                           </div>
@@ -505,13 +505,13 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="text-right">
                         <div className="text-xs text-muted-foreground uppercase tracking-wide">Expenses</div>
-                        <div className="font-semibold text-red-600">
+                        <div className="font-semibold text-red-600 dark:text-red-500">
                           {formatCurrency(month.expenses)}
                         </div>
                         {month.expenseChange !== 0 && (
                           <div className={cn(
                             'text-xs font-medium',
-                            month.expenseChange < 0 ? 'text-primary' : 'text-red-500'
+                            month.expenseChange < 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500'
                           )}>
                             {month.expenseChange > 0 ? '+' : ''}{month.expenseChange.toFixed(1)}%
                           </div>
@@ -559,18 +559,22 @@ export default function AnalyticsPage() {
                         <span className="font-medium truncate max-w-[200px] block">{merchant.merchant}</span>
                       </td>
                       <td className="py-3 px-2 text-center">
-                        <span className="inline-flex items-center justify-center min-w-[32px] h-6 px-2 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                        <span className="inline-flex items-center justify-center min-w-[32px] h-6 px-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded-full text-sm font-medium">
                           {merchant.visits}
                         </span>
                       </td>
-                      <td className="py-3 px-2 text-right font-medium text-red-600">
+                      <td className="py-3 px-2 text-right font-medium text-red-600 dark:text-red-500">
                         {formatCurrency(merchant.totalSpent)}
                       </td>
                       <td className="py-3 px-2 text-right text-muted-foreground">
                         {formatCurrency(merchant.avgPerVisit)}
                       </td>
                       <td className="py-3 px-2 text-right text-sm text-muted-foreground">
-                        {format(new Date(merchant.lastVisit), 'MMM d')}
+                        {(() => {
+                          // Parse date without timezone issues
+                          const [year, month, day] = merchant.lastVisit.split('-').map(Number);
+                          return format(new Date(year, month - 1, day), 'MMM d');
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -611,7 +615,7 @@ export default function AnalyticsPage() {
                         <span className="text-sm text-muted-foreground">
                           {merchant.count} txn{merchant.count !== 1 ? 's' : ''}
                         </span>
-                        <span className="font-semibold text-red-600 w-24 text-right">
+                        <span className="font-semibold text-red-600 dark:text-red-500 w-24 text-right">
                           {formatCurrency(Math.abs(merchant.total))}
                         </span>
                       </div>

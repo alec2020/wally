@@ -10,28 +10,31 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart';
-import { getCategoryColor, formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
-interface SpendingData {
-  category: string;
-  total: number;
+interface BreakdownItem {
+  name: string;
+  value: number;
+  color: string;
+  type: 'asset' | 'liability' | 'account';
 }
 
-interface SpendingPieChartProps {
-  data: SpendingData[];
+interface NetWorthBreakdownChartProps {
+  data: BreakdownItem[];
 }
 
-export function SpendingPieChart({ data }: SpendingPieChartProps) {
+export function NetWorthBreakdownChart({ data }: NetWorthBreakdownChartProps) {
   const chartData = data.map((item) => ({
-    name: item.category,
-    value: Math.abs(item.total),
-    fill: getCategoryColor(item.category),
+    name: item.name,
+    value: Math.abs(item.value),
+    fill: item.color,
+    type: item.type,
   }));
 
   const chartConfig = data.reduce((acc, item) => {
-    acc[item.category] = {
-      label: item.category,
-      color: getCategoryColor(item.category),
+    acc[item.name] = {
+      label: item.name,
+      color: item.color,
     };
     return acc;
   }, {} as ChartConfig);
@@ -40,10 +43,10 @@ export function SpendingPieChart({ data }: SpendingPieChartProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Spending by Category</CardTitle>
+          <CardTitle>Net Worth Breakdown</CardTitle>
         </CardHeader>
         <CardContent className="flex h-[300px] items-center justify-center">
-          <p className="text-muted-foreground">No spending data available</p>
+          <p className="text-muted-foreground">No data available</p>
         </CardContent>
       </Card>
     );
@@ -52,7 +55,7 @@ export function SpendingPieChart({ data }: SpendingPieChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Spending by Category</CardTitle>
+        <CardTitle>Net Worth Breakdown</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">

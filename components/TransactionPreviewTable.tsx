@@ -250,7 +250,7 @@ export function TransactionPreviewTable({
                   <TableCell
                     className={cn(
                       'text-right whitespace-nowrap font-medium text-sm',
-                      tx.amount < 0 ? 'text-red-600' : 'text-primary'
+                      tx.amount < 0 ? 'text-red-600 dark:text-red-500' : 'text-emerald-600 dark:text-emerald-500'
                     )}
                   >
                     {formatCurrency(tx.amount)}

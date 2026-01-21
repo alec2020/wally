@@ -35,6 +35,8 @@ interface PreviewResult {
   duplicateCount: number;
   transactions: PreviewTransaction[];
   accountType: string;
+  statementPeriodStart?: string;
+  statementPeriodEnd?: string;
 }
 
 interface UploadResult {
@@ -47,7 +49,11 @@ interface UploadResult {
 
 type UploadStage = 'idle' | 'parsing' | 'categorizing' | 'ready' | 'uploading';
 
-export function FileUploader() {
+interface FileUploaderProps {
+  onUploadComplete?: () => void;
+}
+
+export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [transactions, setTransactions] = useState<PreviewTransaction[]>([]);
@@ -74,10 +80,10 @@ export function FileUploader() {
   }, []);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const csvFile = acceptedFiles[0];
-    if (!csvFile) return;
+    const uploadedFile = acceptedFiles[0];
+    if (!uploadedFile) return;
 
-    setFile(csvFile);
+    setFile(uploadedFile);
     setError(null);
     setUploadResult(null);
     setPreview(null);
@@ -86,16 +92,21 @@ export function FileUploader() {
 
     // Preview and categorize the file
     const formData = new FormData();
-    formData.append('file', csvFile);
+    formData.append('file', uploadedFile);
 
     try {
       setStage('categorizing');
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
       const response = await fetch('/api/upload', {
         method: 'PUT',
         body: formData,
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
       const data = await response.json();
 
       if (!response.ok) {
@@ -119,7 +130,11 @@ export function FileUploader() {
         }
       }
     } catch (err) {
-      setError('Failed to preview file');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError('Failed to preview file');
+      }
       setStage('idle');
     }
   }, [accounts]);
@@ -127,9 +142,11 @@ export function FileUploader() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
+      'application/pdf': ['.pdf'],
       'text/csv': ['.csv'],
     },
     maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB
   });
 
   const handleUpload = async () => {
@@ -156,6 +173,9 @@ export function FileUploader() {
           accountName: newAccountName || undefined,
           accountType: preview.accountType,
           institution: preview.institution,
+          statementPeriodStart: preview.statementPeriodStart,
+          statementPeriodEnd: preview.statementPeriodEnd,
+          filename: file?.name,
         }),
       });
 
@@ -172,6 +192,7 @@ export function FileUploader() {
       setPreview(null);
       setTransactions([]);
       setStage('idle');
+      onUploadComplete?.();
     } catch (err) {
       setError('Failed to upload file');
       setStage('ready');
@@ -207,7 +228,7 @@ export function FileUploader() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <CheckCircle className="h-16 w-16 text-primary mb-4" />
+          <CheckCircle className="h-16 w-16 text-emerald-600 dark:text-emerald-500 mb-4" />
           <h3 className="text-xl font-semibold mb-2">Upload Complete!</h3>
           <p className="text-muted-foreground mb-4">
             Imported {uploadResult.imported} transactions
@@ -222,7 +243,7 @@ export function FileUploader() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Upload CSV Statement</CardTitle>
+          <CardTitle>Upload Statement</CardTitle>
         </CardHeader>
         <CardContent>
           <div
@@ -230,7 +251,7 @@ export function FileUploader() {
             className={cn(
               'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors',
               isDragActive
-                ? 'border-primary bg-primary/10'
+                ? 'border-emerald-500 bg-emerald-500/10'
                 : 'border-border hover:border-foreground/30',
               stage !== 'idle' && 'pointer-events-none opacity-50'
             )}
@@ -238,14 +259,14 @@ export function FileUploader() {
             <input {...getInputProps()} />
             <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             {isDragActive ? (
-              <p className="text-primary">Drop the CSV file here...</p>
+              <p className="text-emerald-600 dark:text-emerald-500">Drop your statement here...</p>
             ) : (
               <>
                 <p className="text-muted-foreground mb-2">
-                  Drag and drop a CSV file here, or click to select
+                  Drag and drop your bank or credit card statement
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Supports Chase, American Express, Apple Card, Fifth Third, and Robinhood
+                  PDF statements (recommended) or CSV exports
                 </p>
               </>
             )}
@@ -265,16 +286,14 @@ export function FileUploader() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="relative">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              {stage === 'categorizing' && (
-                <Sparkles className="h-5 w-5 text-amber-500 absolute -top-1 -right-1 animate-pulse" />
-              )}
+              <Loader2 className="h-12 w-12 animate-spin text-emerald-600 dark:text-emerald-500" />
+              <Sparkles className="h-5 w-5 text-amber-500 absolute -top-1 -right-1 animate-pulse" />
             </div>
             <h3 className="text-lg font-semibold mt-4">
-              {stage === 'parsing' ? 'Parsing CSV...' : 'Categorizing with AI...'}
+              Analyzing statement...
             </h3>
             <p className="text-muted-foreground text-sm mt-1">
-              {stage === 'categorizing' && 'This may take a moment for large files'}
+              Extracting and categorizing transactions
             </p>
           </CardContent>
         </Card>

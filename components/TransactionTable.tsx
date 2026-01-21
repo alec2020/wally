@@ -48,6 +48,7 @@ interface Transaction {
   subcategory: string | null;
   merchant: string | null;
   is_transfer: boolean;
+  subscription_frequency: 'monthly' | 'annual' | null;
   account_id: number | null;
   account_name: string | null;
 }
@@ -323,7 +324,7 @@ export function TransactionTable({
                       size="sm"
                       className={cn(
                         'flex-1',
-                        transactionType === type && 'bg-gray-900'
+                        transactionType === type && 'bg-foreground text-background hover:bg-foreground/90'
                       )}
                       onClick={() => handleTransactionTypeChange(type)}
                     >
@@ -352,7 +353,7 @@ export function TransactionTable({
                     className={cn(
                       'px-2 py-1 text-xs rounded-full border transition-colors',
                       categoryFilters.includes('uncategorized')
-                        ? 'bg-gray-900 text-white border-gray-900'
+                        ? 'bg-foreground text-background border-foreground'
                         : 'bg-card text-muted-foreground border-border hover:border-foreground/30'
                     )}
                   >
@@ -365,7 +366,7 @@ export function TransactionTable({
                       className={cn(
                         'px-2 py-1 text-xs rounded-full border transition-colors',
                         categoryFilters.includes(cat)
-                          ? 'bg-gray-900 text-white border-gray-900'
+                          ? 'bg-foreground text-background border-foreground'
                           : 'bg-card text-muted-foreground border-border hover:border-foreground/30'
                       )}
                     >
@@ -400,7 +401,7 @@ export function TransactionTable({
                   <Button
                     variant={datePreset === 'this-month' ? 'default' : 'outline'}
                     size="sm"
-                    className={datePreset === 'this-month' ? 'bg-gray-900' : ''}
+                    className={datePreset === 'this-month' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => handleDatePresetChange('this-month')}
                   >
                     This Month
@@ -408,7 +409,7 @@ export function TransactionTable({
                   <Button
                     variant={datePreset === 'last-month' ? 'default' : 'outline'}
                     size="sm"
-                    className={datePreset === 'last-month' ? 'bg-gray-900' : ''}
+                    className={datePreset === 'last-month' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => handleDatePresetChange('last-month')}
                   >
                     Last Month
@@ -416,7 +417,7 @@ export function TransactionTable({
                   <Button
                     variant={datePreset === 'last-3-months' ? 'default' : 'outline'}
                     size="sm"
-                    className={datePreset === 'last-3-months' ? 'bg-gray-900' : ''}
+                    className={datePreset === 'last-3-months' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => handleDatePresetChange('last-3-months')}
                   >
                     Last 3 Months
@@ -424,7 +425,7 @@ export function TransactionTable({
                   <Button
                     variant={datePreset === 'this-year' ? 'default' : 'outline'}
                     size="sm"
-                    className={datePreset === 'this-year' ? 'bg-gray-900' : ''}
+                    className={datePreset === 'this-year' ? 'bg-foreground text-background hover:bg-foreground/90' : ''}
                     onClick={() => handleDatePresetChange('this-year')}
                   >
                     This Year
@@ -432,7 +433,7 @@ export function TransactionTable({
                   <Button
                     variant={datePreset === 'all' ? 'default' : 'outline'}
                     size="sm"
-                    className={cn('col-span-2', datePreset === 'all' ? 'bg-gray-900' : '')}
+                    className={cn('col-span-2', datePreset === 'all' ? 'bg-foreground text-background hover:bg-foreground/90' : '')}
                     onClick={() => handleDatePresetChange('all')}
                   >
                     All Time
@@ -506,15 +507,22 @@ export function TransactionTable({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {categoryFilters.map((cat) => (
-              <Badge key={cat} variant="secondary" className="gap-1 pr-1">
+              <span
+                key={cat}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  cat === 'uncategorized' ? 'bg-muted text-muted-foreground' : 'text-white'
+                )}
+                style={cat !== 'uncategorized' ? { backgroundColor: getCategoryColor(cat) } : undefined}
+              >
                 {cat === 'uncategorized' ? 'Uncategorized' : cat}
                 <button
                   onClick={() => toggleCategoryFilter(cat)}
-                  className="ml-1 hover:bg-muted rounded-full p-0.5"
+                  className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"
                 >
                   <X className="h-3 w-3" />
                 </button>
-              </Badge>
+              </span>
             ))}
             {accountFilter !== 'all' && (
               <Badge variant="secondary" className="gap-1 pr-1">
@@ -571,12 +579,12 @@ export function TransactionTable({
                 <span className="font-medium">{filterStats.count}</span> transactions
               </span>
               {filterStats.totalExpenses > 0 && (
-                <span className="text-red-600">
+                <span className="text-red-600 dark:text-red-500">
                   <span className="font-medium">{formatCurrency(filterStats.totalExpenses)}</span> spent
                 </span>
               )}
               {filterStats.totalIncome > 0 && (
-                <span className="text-primary">
+                <span className="text-emerald-600 dark:text-emerald-500">
                   <span className="font-medium">{formatCurrency(filterStats.totalIncome)}</span> income
                 </span>
               )}
@@ -652,7 +660,7 @@ export function TransactionTable({
                       <PopoverTrigger asChild>
                         <button
                           className={cn(
-                            'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                            'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors',
                             'hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400',
                             tx.category ? 'text-white' : 'bg-muted text-muted-foreground'
                           )}
@@ -696,7 +704,7 @@ export function TransactionTable({
                   <TableCell
                     className={cn(
                       'text-right whitespace-nowrap font-medium',
-                      tx.amount < 0 ? 'text-red-600' : 'text-primary'
+                      tx.amount < 0 ? 'text-red-600 dark:text-red-500' : 'text-emerald-600 dark:text-emerald-500'
                     )}
                   >
                     {formatCurrency(tx.amount)}
@@ -732,6 +740,48 @@ export function TransactionTable({
                             ))}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
+                        {tx.category === 'Subscriptions' && (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              Billing Cycle
+                              {tx.subscription_frequency && (
+                                <span className="ml-auto text-xs text-muted-foreground">
+                                  {tx.subscription_frequency === 'monthly' ? 'Monthly' : 'Annual'}
+                                </span>
+                              )}
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  onUpdate(tx.id, { subscription_frequency: 'monthly' })
+                                }
+                                className={tx.subscription_frequency === 'monthly' ? 'bg-muted' : ''}
+                              >
+                                Monthly
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  onUpdate(tx.id, { subscription_frequency: 'annual' })
+                                }
+                                className={tx.subscription_frequency === 'annual' ? 'bg-muted' : ''}
+                              >
+                                Annual
+                              </DropdownMenuItem>
+                              {tx.subscription_frequency && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      onUpdate(tx.id, { subscription_frequency: null })
+                                    }
+                                  >
+                                    Clear
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => onDelete(tx.id)}

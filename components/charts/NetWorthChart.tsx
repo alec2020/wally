@@ -53,16 +53,29 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
           dataKey="month"
           tickLine={false}
           axisLine={false}
-          tickMargin={12}
-          fontSize={12}
+          tickMargin={8}
+          interval={0}
+          tick={({ x, y, payload, index }) => (
+            <text
+              x={x}
+              y={y}
+              dy={12}
+              fontSize={12}
+              textAnchor={index === chartData.length - 1 ? 'end' : index === 0 ? 'start' : 'middle'}
+              fill="currentColor"
+              className="text-muted-foreground"
+            >
+              {payload.value}
+            </text>
+          )}
         />
         <YAxis
           tickLine={false}
           axisLine={false}
-          tickMargin={8}
+          tickMargin={4}
           tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
           fontSize={12}
-          width={55}
+          width={50}
         />
         <ChartTooltip
           content={

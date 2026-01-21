@@ -12,6 +12,7 @@ import {
   Wallet,
   PiggyBank,
 } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -27,7 +28,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col bg-neutral-900">
       <div className="flex h-16 shrink-0 items-center gap-2 px-6">
-        <Wallet className="h-8 w-8 text-primary" />
+        <Wallet className="h-8 w-8 text-emerald-500" />
         <span className="text-xl font-bold text-white">FinanceTracker</span>
       </div>
       <nav className="flex flex-1 flex-col px-4 py-4">
@@ -41,14 +42,14 @@ export function Sidebar() {
                   className={cn(
                     'group flex gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary/20 text-white'
+                      ? 'bg-emerald-500/20 text-white'
                       : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   )}
                 >
                   <item.icon
                     className={cn(
                       'h-5 w-5 shrink-0',
-                      isActive ? 'text-primary' : 'text-gray-400 group-hover:text-white'
+                      isActive ? 'text-emerald-500' : 'text-gray-400 group-hover:text-white'
                     )}
                   />
                   {item.name}
@@ -57,10 +58,11 @@ export function Sidebar() {
             );
           })}
         </ul>
-        <div className="mt-auto">
+        <div className="mt-auto space-y-2 px-3">
+          <ThemeToggle />
           <Link
             href="/settings"
-            className="group flex gap-3 rounded-md px-3 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-800 hover:text-white"
+            className="group flex gap-3 rounded-md py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-800 hover:text-white"
           >
             <Settings className="h-5 w-5 shrink-0 text-gray-400 group-hover:text-white" />
             Settings

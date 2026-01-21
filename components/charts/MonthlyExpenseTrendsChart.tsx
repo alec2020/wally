@@ -71,18 +71,33 @@ export function MonthlyExpenseTrendsChart({ data }: MonthlyExpenseTrendsChartPro
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[400px] w-full">
-          <AreaChart data={chartData} accessibilityLayer>
+          <AreaChart data={chartData} accessibilityLayer margin={{ left: -5 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
+              interval={0}
+              tick={({ x, y, payload, index }) => (
+                <text
+                  x={x}
+                  y={y}
+                  dy={12}
+                  fontSize={12}
+                  textAnchor={index === chartData.length - 1 ? 'end' : index === 0 ? 'start' : 'middle'}
+                  fill="currentColor"
+                  className="text-muted-foreground"
+                >
+                  {payload.value}
+                </text>
+              )}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
+              tickMargin={4}
+              width={40}
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
             />
             <ChartTooltip
