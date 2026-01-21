@@ -20,7 +20,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const CATEGORIES = [
   'Income',
@@ -47,6 +48,9 @@ export interface PreviewTransaction {
   merchant?: string | null;
   isTransfer?: boolean;
   rawData?: string;
+  originalCategory?: string | null; // AI's initial suggestion, used to detect user corrections
+  isDuplicate?: boolean; // Whether this transaction matches an existing one
+  includeDuplicate?: boolean; // User override to include a duplicate anyway
 }
 
 interface TransactionPreviewTableProps {
@@ -142,6 +146,29 @@ export function TransactionPreviewTable({
     }
   };
 
+  const handleToggleDuplicate = (index: number) => {
+    const transaction = paginatedTransactions[index];
+    const originalIndex = transactions.findIndex(
+      (tx) =>
+        tx.date === transaction.date &&
+        tx.description === transaction.description &&
+        tx.amount === transaction.amount
+    );
+
+    if (originalIndex !== -1) {
+      const updated = [...transactions];
+      updated[originalIndex] = {
+        ...updated[originalIndex],
+        includeDuplicate: !updated[originalIndex].includeDuplicate,
+      };
+      onTransactionsChange(updated);
+    }
+  };
+
+  // Count duplicates
+  const duplicateCount = transactions.filter(tx => tx.isDuplicate).length;
+  const includedDuplicateCount = transactions.filter(tx => tx.isDuplicate && tx.includeDuplicate).length;
+
   // Category summary
   const categorySummary = useMemo(() => {
     const summary: Record<string, { count: number; total: number }> = {};
@@ -187,6 +214,13 @@ export function TransactionPreviewTable({
             {category}: {count} ({formatCurrency(Math.abs(total))})
           </Badge>
         ))}
+        {duplicateCount > 0 && (
+          <Badge variant="outline" className="text-xs border-orange-500 text-orange-600">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            {duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''} detected
+            {includedDuplicateCount > 0 && ` (${includedDuplicateCount} included)`}
+          </Badge>
+        )}
       </div>
 
       {/* Search */}
@@ -209,6 +243,9 @@ export function TransactionPreviewTable({
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
               <TableRow>
+                {duplicateCount > 0 && (
+                  <TableHead className="w-[50px]">Include</TableHead>
+                )}
                 <TableHead className="w-[100px]">
                   <SortButton field="date">Date</SortButton>
                 </TableHead>
@@ -224,59 +261,85 @@ export function TransactionPreviewTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedTransactions.map((tx, index) => (
-                <TableRow
-                  key={`${tx.date}-${tx.description}-${tx.amount}-${index}`}
-                  className={cn(
-                    tx.isTransfer && "opacity-50",
-                    !tx.category && "bg-amber-50/50 dark:bg-amber-950/20"
-                  )}
-                >
-                  <TableCell className="whitespace-nowrap text-sm">
-                    {formatDate(tx.date)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="max-w-[300px]">
-                      <div className="truncate text-sm font-medium">
-                        {tx.merchant || tx.description}
-                      </div>
-                      {tx.merchant && tx.merchant !== tx.description && (
-                        <div className="truncate text-xs text-muted-foreground">
-                          {tx.description}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell
+              {paginatedTransactions.map((tx, index) => {
+                const isDupe = tx.isDuplicate && !tx.includeDuplicate;
+                return (
+                  <TableRow
+                    key={`${tx.date}-${tx.description}-${tx.amount}-${index}`}
                     className={cn(
-                      'text-right whitespace-nowrap font-medium text-sm',
-                      tx.amount < 0 ? 'text-red-600 dark:text-red-500' : 'text-emerald-600 dark:text-emerald-500'
+                      tx.isTransfer && "opacity-50",
+                      !tx.category && !tx.isDuplicate && "bg-amber-50/50 dark:bg-amber-950/20",
+                      isDupe && "bg-orange-50/50 dark:bg-orange-950/20 opacity-60"
                     )}
                   >
-                    {formatCurrency(tx.amount)}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={tx.category || ''}
-                      onValueChange={(value) => handleCategoryChange(index, value)}
+                    {duplicateCount > 0 && (
+                      <TableCell>
+                        {tx.isDuplicate ? (
+                          <Checkbox
+                            checked={tx.includeDuplicate || false}
+                            onCheckedChange={() => handleToggleDuplicate(index)}
+                            className="border-orange-500"
+                          />
+                        ) : (
+                          <Checkbox checked disabled className="opacity-30" />
+                        )}
+                      </TableCell>
+                    )}
+                    <TableCell className={cn("whitespace-nowrap text-sm", isDupe && "line-through")}>
+                      {formatDate(tx.date)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="max-w-[300px]">
+                        <div className={cn("truncate text-sm font-medium", isDupe && "line-through")}>
+                          {tx.merchant || tx.description}
+                        </div>
+                        {tx.merchant && tx.merchant !== tx.description && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {tx.description}
+                          </div>
+                        )}
+                        {tx.isDuplicate && (
+                          <div className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1 mt-0.5">
+                            <AlertTriangle className="h-3 w-3" />
+                            Possible duplicate
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        'text-right whitespace-nowrap font-medium text-sm',
+                        tx.amount < 0 ? 'text-red-600 dark:text-red-500' : 'text-emerald-600 dark:text-emerald-500',
+                        isDupe && "line-through"
+                      )}
                     >
-                      <SelectTrigger className={cn(
-                        "h-8 text-xs",
-                        !tx.category && "border-amber-500"
-                      )}>
-                        <SelectValue placeholder="Select..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIES.map((cat) => (
-                          <SelectItem key={cat} value={cat} className="text-sm">
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {formatCurrency(tx.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={tx.category || ''}
+                        onValueChange={(value) => handleCategoryChange(index, value)}
+                        disabled={isDupe}
+                      >
+                        <SelectTrigger className={cn(
+                          "h-8 text-xs",
+                          !tx.category && "border-amber-500",
+                          isDupe && "opacity-50"
+                        )}>
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CATEGORIES.map((cat) => (
+                            <SelectItem key={cat} value={cat} className="text-sm">
+                              {cat}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

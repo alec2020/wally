@@ -85,12 +85,17 @@ export async function GET(request: NextRequest) {
       endDate: currentMonthEnd,
     });
 
+    // Income: Only positive amounts categorized as 'Income'
     const currentMonthIncome = currentMonthTransactions
-      .filter((tx) => tx.amount > 0 && !tx.is_transfer)
+      .filter((tx) => tx.amount > 0 && !tx.is_transfer && tx.category === 'Income')
       .reduce((sum, tx) => sum + tx.amount, 0);
 
+    // Expenses: All negative amounts + positive amounts in non-Income categories (credits/refunds offset)
     const currentMonthExpenses = currentMonthTransactions
-      .filter((tx) => tx.amount < 0 && !tx.is_transfer && tx.category !== 'Investing')
+      .filter((tx) => !tx.is_transfer && tx.category !== 'Investing' && (
+        tx.amount < 0 ||
+        (tx.amount > 0 && tx.category && tx.category !== 'Income')
+      ))
       .reduce((sum, tx) => sum + tx.amount, 0);
 
     const currentMonthInvested = currentMonthTransactions
@@ -110,8 +115,12 @@ export async function GET(request: NextRequest) {
       endDate: lastMonthEnd,
     });
 
+    // Expenses: All negative amounts + positive amounts in non-Income categories (credits/refunds offset)
     const lastMonthExpenses = lastMonthTransactions
-      .filter((tx) => tx.amount < 0 && !tx.is_transfer && tx.category !== 'Investing')
+      .filter((tx) => !tx.is_transfer && tx.category !== 'Investing' && (
+        tx.amount < 0 ||
+        (tx.amount > 0 && tx.category && tx.category !== 'Income')
+      ))
       .reduce((sum, tx) => sum + tx.amount, 0);
 
     const expensesTrend =
@@ -120,8 +129,9 @@ export async function GET(request: NextRequest) {
         : 0;
 
     // Calculate current month spending by category
+    // Include both negative amounts (purchases) and positive amounts (credits/refunds)
     const currentMonthSpendingByCategory = currentMonthTransactions
-      .filter((tx) => tx.amount < 0 && !tx.is_transfer && tx.category && tx.category !== 'Investing')
+      .filter((tx) => !tx.is_transfer && tx.category && tx.category !== 'Investing' && tx.category !== 'Income')
       .reduce((acc, tx) => {
         const category = tx.category!;
         const existing = acc.find((c) => c.category === category);

@@ -129,7 +129,14 @@ If a preference includes conditions (like "above $1200" or "over $50"), ONLY app
 `
     : '';
 
+  // Get current date for context
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+
   const prompt = `You are a financial document parser. Analyze this bank/credit card statement and extract all transactions.
+
+TODAY'S DATE: ${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}
 
 1. First, identify the financial institution (e.g., "Chase", "American Express", "Bank of America", "Wells Fargo").
 2. Determine the account type: "credit_card" or "bank" (checking/savings).
@@ -143,6 +150,11 @@ If a preference includes conditions (like "above $1200" or "over $50"), ONLY app
    - merchant: Clean business name (e.g., "AMZN MKTP" → "Amazon", "SQ *COFFEE SHOP" → "Coffee Shop")
    - isTransfer: true if this is a transfer between accounts, credit card payment, or not real spending/income
 ${preferencesSection}
+IMPORTANT DATE RULES:
+- Two-digit years (e.g., "06/24/25") should be interpreted based on context and today's date
+- Years 00-30 typically mean 2000-2030, years 31-99 typically mean 1931-1999
+- A statement from "25" almost certainly means 2025, not 1925 or 2023
+
 IMPORTANT AMOUNT RULES:
 - For credit cards: purchases/charges are NEGATIVE, payments/credits are POSITIVE
 - For bank accounts: withdrawals/debits are NEGATIVE, deposits/credits are POSITIVE

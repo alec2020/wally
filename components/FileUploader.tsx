@@ -149,8 +149,13 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
     maxSize: 10 * 1024 * 1024, // 10MB
   });
 
+  // Filter to only transactions that should be imported
+  const transactionsToImport = transactions.filter(
+    tx => !tx.isDuplicate || tx.includeDuplicate
+  );
+
   const handleUpload = async () => {
-    if (!preview || transactions.length === 0) return;
+    if (!preview || transactionsToImport.length === 0) return;
 
     // Require account selection
     if (!selectedAccountId && !newAccountName) {
@@ -168,7 +173,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transactions,
+          transactions: transactionsToImport,
           accountId: selectedAccountId && selectedAccountId !== 'new' ? selectedAccountId : undefined,
           accountName: newAccountName || undefined,
           accountType: preview.accountType,
@@ -316,13 +321,13 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
               </Badge>
               <Badge variant="outline">{preview.accountType}</Badge>
               <span className="text-sm text-muted-foreground">
-                {transactions.length} transactions to import
+                {transactionsToImport.length} transaction{transactionsToImport.length !== 1 ? 's' : ''} to import
+                {transactions.length !== transactionsToImport.length && (
+                  <span className="text-orange-600 ml-1">
+                    ({transactions.length - transactionsToImport.length} duplicate{transactions.length - transactionsToImport.length !== 1 ? 's' : ''} excluded)
+                  </span>
+                )}
               </span>
-              {preview.duplicateCount > 0 && (
-                <span className="text-sm text-amber-600">
-                  {preview.duplicateCount} duplicates excluded
-                </span>
-              )}
               {uncategorizedCount > 0 && (
                 <Badge variant="outline" className="border-amber-500 text-amber-600">
                   {uncategorizedCount} uncategorized
@@ -373,7 +378,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
             {/* Action buttons */}
             <div className="flex justify-between items-center pt-4 border-t">
               <p className="text-sm text-muted-foreground">
-                Review categories above before importing. You can change any category by clicking on it.
+                Review categories above before importing. Check the box to include any flagged duplicates.
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={reset}>
@@ -381,10 +386,10 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
                 </Button>
                 <Button
                   onClick={handleUpload}
-                  disabled={stage === 'uploading' || transactions.length === 0}
+                  disabled={stage === 'uploading' || transactionsToImport.length === 0}
                 >
                   {stage === 'uploading' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Import {transactions.length} Transactions
+                  Import {transactionsToImport.length} Transaction{transactionsToImport.length !== 1 ? 's' : ''}
                 </Button>
               </div>
             </div>

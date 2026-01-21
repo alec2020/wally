@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { TransactionTable } from '@/components/TransactionTable';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeTransactions, generateFakeAccounts } from '@/lib/fake-data';
@@ -17,6 +18,7 @@ interface Transaction {
   subscription_frequency: 'monthly' | 'annual' | null;
   account_id: number | null;
   account_name: string | null;
+  notes: string | null;
 }
 
 interface Account {
@@ -30,6 +32,29 @@ export default function TransactionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const { isScreenshotMode } = useScreenshotMode();
+  const searchParams = useSearchParams();
+
+  // Parse URL search params for initial filters
+  const initialFilters = useMemo(() => {
+    const category = searchParams.get('category');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    const categoryFilters = category ? [category] : undefined;
+
+    let dateRange: { from: Date; to: Date } | undefined;
+    if (startDate && endDate) {
+      // Parse dates safely without timezone issues
+      const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+      const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+      dateRange = {
+        from: new Date(startYear, startMonth - 1, startDay),
+        to: new Date(endYear, endMonth - 1, endDay),
+      };
+    }
+
+    return { categoryFilters, dateRange };
+  }, [searchParams]);
 
   const fetchTransactions = useCallback(async () => {
     if (isScreenshotMode) {
@@ -145,6 +170,8 @@ export default function TransactionsPage() {
         onDelete={handleDelete}
         onRecategorize={handleRecategorize}
         isLoading={isCategorizing}
+        initialCategoryFilters={initialFilters.categoryFilters}
+        initialDateRange={initialFilters.dateRange}
       />
     </div>
   );

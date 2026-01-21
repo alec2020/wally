@@ -165,8 +165,8 @@ export function getTransactions(filters?: {
     params.push(filters.accountId);
   }
   if (filters?.search) {
-    query += ' AND (t.description LIKE ? OR t.merchant LIKE ?)';
-    params.push(`%${filters.search}%`, `%${filters.search}%`);
+    query += ' AND (t.description LIKE ? OR t.merchant LIKE ? OR t.notes LIKE ?)';
+    params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
   }
 
   query += ' ORDER BY t.date DESC, t.id DESC';
@@ -277,12 +277,14 @@ export function deleteTransaction(id: number): void {
 }
 
 // Check for duplicate transactions
-export function isDuplicateTransaction(date: string, amount: number, description: string): boolean {
+export function isDuplicateTransaction(date: string, amount: number, _description: string): boolean {
+  // Match on date + amount only (not description) because the same transaction
+  // can have different description formatting from different sources (CSV vs PDF)
   const existing = getDb().prepare(`
     SELECT id FROM transactions
-    WHERE date = ? AND amount = ? AND description = ?
+    WHERE date = ? AND amount = ?
     LIMIT 1
-  `).get(date, amount, description);
+  `).get(date, amount);
   return !!existing;
 }
 
@@ -419,10 +421,12 @@ export function getCategoryNames(): string[] {
 
 // Analytics helpers
 export function getSpendingByCategory(startDate?: string, endDate?: string): { category: string; total: number }[] {
+  // Include both negative amounts (purchases) and positive amounts (credits/refunds)
+  // in each category so credits offset the purchases
   let query = `
     SELECT category, SUM(amount) as total
     FROM transactions
-    WHERE amount < 0 AND is_transfer = 0 AND category IS NOT NULL AND category != 'Investing'
+    WHERE is_transfer = 0 AND category IS NOT NULL AND category != 'Investing' AND category != 'Income'
   `;
   const params: string[] = [];
 
@@ -440,11 +444,17 @@ export function getSpendingByCategory(startDate?: string, endDate?: string): { c
 }
 
 export function getMonthlyTotals(startDate?: string, endDate?: string): { month: string; income: number; expenses: number; invested: number }[] {
+  // Income: Only positive amounts categorized as 'Income'
+  // Expenses: All negative amounts + positive amounts in non-Income categories (credits/refunds offset)
   let query = `
     SELECT
       strftime('%Y-%m', date) as month,
-      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND (category IS NULL OR category != 'Financial') THEN amount ELSE 0 END) as income,
-      SUM(CASE WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount ELSE 0 END) as expenses,
+      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND category = 'Income' THEN amount ELSE 0 END) as income,
+      SUM(CASE
+        WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount
+        WHEN amount > 0 AND is_transfer = 0 AND category IS NOT NULL AND category != 'Income' AND category != 'Investing' THEN amount
+        ELSE 0
+      END) as expenses,
       SUM(CASE WHEN category = 'Investing' THEN ABS(amount) ELSE 0 END) as invested
     FROM transactions
     WHERE 1=1
@@ -502,11 +512,17 @@ export function getTransactionStats(startDate?: string, endDate?: string): {
   totalExpenses: number;
   uncategorized: number;
 } {
+  // Income: Only positive amounts categorized as 'Income'
+  // Expenses: All negative amounts + positive amounts in non-Income categories (credits/refunds offset)
   let query = `
     SELECT
       COUNT(*) as totalTransactions,
-      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND (category IS NULL OR category != 'Financial') THEN amount ELSE 0 END) as totalIncome,
-      SUM(CASE WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount ELSE 0 END) as totalExpenses,
+      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND category = 'Income' THEN amount ELSE 0 END) as totalIncome,
+      SUM(CASE
+        WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount
+        WHEN amount > 0 AND is_transfer = 0 AND category IS NOT NULL AND category != 'Income' AND category != 'Investing' THEN amount
+        ELSE 0
+      END) as totalExpenses,
       SUM(CASE WHEN category IS NULL THEN 1 ELSE 0 END) as uncategorized
     FROM transactions
     WHERE 1=1
@@ -767,11 +783,17 @@ export interface SavingsData {
 }
 
 export function getMonthlySavingsRate(months: number = 12): SavingsData[] {
+  // Income: Only positive amounts categorized as 'Income'
+  // Expenses: All negative amounts + positive amounts in non-Income categories (credits/refunds offset)
   const results = getDb().prepare(`
     SELECT
       strftime('%Y-%m', date) as month,
-      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND (category IS NULL OR category != 'Financial') THEN amount ELSE 0 END) as income,
-      SUM(CASE WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN ABS(amount) ELSE 0 END) as expenses
+      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND category = 'Income' THEN amount ELSE 0 END) as income,
+      ABS(SUM(CASE
+        WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount
+        WHEN amount > 0 AND is_transfer = 0 AND category IS NOT NULL AND category != 'Income' AND category != 'Investing' THEN amount
+        ELSE 0
+      END)) as expenses
     FROM transactions
     GROUP BY strftime('%Y-%m', date)
     ORDER BY month DESC

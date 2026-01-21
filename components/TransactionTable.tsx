@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -35,9 +35,81 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Calendar } from '@/components/ui/calendar';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { cn, formatCurrency, formatDate, getCategoryColor } from '@/lib/utils';
-import { MoreHorizontal, Search, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
+import { MoreHorizontal, Search, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight, Filter, X, StickyNote } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, parseISO } from 'date-fns';
+
+// Separate component for note editing to prevent re-renders of the main table
+function NoteEditDialog({
+  transaction,
+  onSave,
+  onClose,
+}: {
+  transaction: { id: number; notes: string | null } | null;
+  onSave: (id: number, notes: string | null) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(transaction?.notes || '');
+
+  // Reset value when transaction changes
+  useEffect(() => {
+    setValue(transaction?.notes || '');
+  }, [transaction]);
+
+  if (!transaction) return null;
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{transaction.notes ? 'Edit Note' : 'Add Note'}</DialogTitle>
+        </DialogHeader>
+        <Textarea
+          placeholder="Add a note about this transaction..."
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          rows={4}
+          className="resize-y"
+          autoFocus
+        />
+        <DialogFooter className="gap-2 sm:gap-0">
+          {value && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                onSave(transaction.id, null);
+                onClose();
+              }}
+              className="text-red-600 hover:text-red-700"
+            >
+              Remove Note
+            </Button>
+          )}
+          <div className="flex-1" />
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              onSave(transaction.id, value || null);
+              onClose();
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 interface Transaction {
   id: number;
@@ -51,6 +123,7 @@ interface Transaction {
   subscription_frequency: 'monthly' | 'annual' | null;
   account_id: number | null;
   account_name: string | null;
+  notes: string | null;
 }
 
 interface Account {
@@ -65,6 +138,8 @@ interface TransactionTableProps {
   onDelete: (id: number) => void;
   onRecategorize: () => void;
   isLoading?: boolean;
+  initialCategoryFilters?: string[];
+  initialDateRange?: { from: Date; to: Date };
 }
 
 const CATEGORIES = [
@@ -93,20 +168,25 @@ export function TransactionTable({
   onDelete,
   onRecategorize,
   isLoading,
+  initialCategoryFilters,
+  initialDateRange,
 }: TransactionTableProps) {
   const [search, setSearch] = useState('');
-  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [categoryFilters, setCategoryFilters] = useState<string[]>(initialCategoryFilters || []);
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [transactionType, setTransactionType] = useState<TransactionType>('all');
-  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>(initialDateRange ? 'custom' : 'all');
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined,
+    from: initialDateRange?.from,
+    to: initialDateRange?.to,
   });
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
+
+  // Note editing state
+  const [editingTransaction, setEditingTransaction] = useState<{ id: number; notes: string | null } | null>(null);
 
   // Calculate date range based on preset
   const dateRange = useMemo(() => {
@@ -152,7 +232,8 @@ export function TransactionTable({
       const matchesSearch =
         search === '' ||
         tx.description.toLowerCase().includes(search.toLowerCase()) ||
-        tx.merchant?.toLowerCase().includes(search.toLowerCase());
+        tx.merchant?.toLowerCase().includes(search.toLowerCase()) ||
+        tx.notes?.toLowerCase().includes(search.toLowerCase());
 
       const matchesCategory =
         categoryFilters.length === 0 ||
@@ -249,13 +330,19 @@ export function TransactionTable({
   ].filter(Boolean).length;
 
   // Calculate summary stats for filtered results
+  // Income: Only positive amounts categorized as 'Income'
+  // Expenses: All negative amounts + positive amounts in non-Income categories (credits/refunds offset)
   const filterStats = useMemo(() => {
     if (activeFilterCount === 0) return null;
-    const totalExpenses = filteredTransactions
-      .filter(tx => tx.amount < 0 && !tx.is_transfer)
-      .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    const expenseSum = filteredTransactions
+      .filter(tx => !tx.is_transfer && tx.category !== 'Investing' && (
+        tx.amount < 0 ||
+        (tx.amount > 0 && tx.category && tx.category !== 'Income')
+      ))
+      .reduce((sum, tx) => sum + tx.amount, 0);
+    const totalExpenses = Math.abs(expenseSum);
     const totalIncome = filteredTransactions
-      .filter(tx => tx.amount > 0 && !tx.is_transfer && tx.category !== 'Financial')
+      .filter(tx => tx.amount > 0 && !tx.is_transfer && tx.category === 'Income')
       .reduce((sum, tx) => sum + tx.amount, 0);
     return {
       count: filteredTransactions.length,
@@ -635,14 +722,28 @@ export function TransactionTable({
                     {formatDate(tx.date)}
                   </TableCell>
                   <TableCell>
-                    <div>
-                      <div className="font-medium truncate max-w-[300px]">
-                        {tx.merchant || tx.description}
-                      </div>
-                      {tx.merchant && tx.merchant !== tx.description && (
-                        <div className="text-sm text-muted-foreground truncate max-w-[300px]">
-                          {tx.description}
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate max-w-[300px]">
+                          {tx.merchant || tx.description}
                         </div>
+                        {tx.merchant && tx.merchant !== tx.description && (
+                          <div className="text-sm text-muted-foreground truncate max-w-[300px]">
+                            {tx.description}
+                          </div>
+                        )}
+                      </div>
+                      {tx.notes && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="flex-shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                              <StickyNote className="h-4 w-4" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-3" align="start">
+                            <p className="text-sm whitespace-pre-wrap">{tx.notes}</p>
+                          </PopoverContent>
+                        </Popover>
                       )}
                     </div>
                   </TableCell>
@@ -717,6 +818,11 @@ export function TransactionTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => setEditingTransaction({ id: tx.id, notes: tx.notes })}
+                        >
+                          {tx.notes ? 'Edit Note' : 'Add Note'}
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
                             onUpdate(tx.id, { is_transfer: !tx.is_transfer })
@@ -855,6 +961,13 @@ export function TransactionTable({
           </div>
         )}
       </div>
+
+      {/* Note editing dialog */}
+      <NoteEditDialog
+        transaction={editingTransaction}
+        onSave={(id, notes) => onUpdate(id, { notes } as Partial<Transaction>)}
+        onClose={() => setEditingTransaction(null)}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   createTransactionsBatch,
   isDuplicateTransaction,
   createStatementUpload,
+  upsertPreferenceForMerchant,
 } from '@/lib/db';
 import { categorizeTransactions, categorizeWithRules } from '@/lib/categorize';
 import { processPDF } from '@/lib/parsers/pdf';
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
       merchant?: string;
       isTransfer?: boolean;
       rawData?: string;
+      originalCategory?: string;
     }) => ({
       account_id: accountId,
       date: tx.date,
@@ -82,6 +84,30 @@ export async function POST(request: NextRequest) {
     }));
 
     const inserted = createTransactionsBatch(dbTransactions);
+
+    // Learn from user corrections made in the preview
+    // Only learn from the final category choice (not intermediate changes)
+    // Uses upsert to avoid duplicates for the same merchant
+    for (const tx of transactions) {
+      const finalCategory = tx.category;
+      const originalCategory = tx.originalCategory;
+
+      // Only learn if user changed the category from what AI suggested
+      if (finalCategory && finalCategory !== originalCategory) {
+        const merchantName = tx.merchant || tx.description;
+
+        // Generate natural language instruction
+        let instruction = `"${merchantName}" should be categorized as ${finalCategory}`;
+        if (tx.subcategory) {
+          instruction += ` / ${tx.subcategory}`;
+        }
+        if (tx.isTransfer) {
+          instruction += ' (mark as transfer)';
+        }
+
+        upsertPreferenceForMerchant(merchantName, instruction, 'learned');
+      }
+    }
 
     // Save statement upload record if we have period dates
     if (accountId && statementPeriodStart && statementPeriodEnd) {
@@ -136,6 +162,9 @@ export async function PUT(request: NextRequest) {
       merchant: string | null;
       isTransfer: boolean;
       rawData: string;
+      originalCategory: string | null; // AI's initial suggestion, used to detect user corrections
+      isDuplicate?: boolean; // Whether this transaction matches an existing one
+      includeDuplicate?: boolean; // User override to include a duplicate anyway
     }
 
     // Handle PDF files
@@ -157,14 +186,16 @@ export async function PUT(request: NextRequest) {
         });
       }
 
-      // Mark duplicates
-      const transactionsWithDuplicateFlag = pdfResult.transactions.map((tx) => ({
+      // Mark duplicates and add originalCategory for learning
+      // Return ALL transactions with isDuplicate flag so user can review and override
+      const transactionsWithFlags = pdfResult.transactions.map((tx) => ({
         ...tx,
         isDuplicate: isDuplicateTransaction(tx.date, tx.amount, tx.description),
+        includeDuplicate: false, // User can toggle this to include duplicates
+        originalCategory: tx.category || null, // Store AI's initial suggestion
       }));
 
-      const duplicateCount = transactionsWithDuplicateFlag.filter((tx) => tx.isDuplicate).length;
-      const newTransactions = transactionsWithDuplicateFlag.filter((tx) => !tx.isDuplicate);
+      const duplicateCount = transactionsWithFlags.filter((tx) => tx.isDuplicate).length;
 
       return NextResponse.json({
         detected: true,
@@ -173,7 +204,7 @@ export async function PUT(request: NextRequest) {
         success: true,
         transactionCount: pdfResult.transactions.length,
         duplicateCount,
-        transactions: newTransactions,
+        transactions: transactionsWithFlags, // Return all, including duplicates
         accountType: pdfResult.accountType,
         statementPeriodStart: pdfResult.statementPeriodStart,
         statementPeriodEnd: pdfResult.statementPeriodEnd,
@@ -203,79 +234,97 @@ export async function PUT(request: NextRequest) {
       });
     }
 
-    // Mark duplicates
+    // Mark duplicates - return ALL transactions with isDuplicate flag so user can review
     const transactionsWithDuplicateFlag = parseResult.transactions.map((tx) => ({
       ...tx,
       isDuplicate: isDuplicateTransaction(tx.date, tx.amount, tx.description),
+      includeDuplicate: false,
     }));
 
     const duplicateCount = transactionsWithDuplicateFlag.filter((tx) => tx.isDuplicate).length;
-    const newTransactions = transactionsWithDuplicateFlag.filter((tx) => !tx.isDuplicate);
 
-    // Categorize all non-duplicate transactions
-    let categorizedTransactions: CategorizedTransaction[] = newTransactions.map(tx => ({
-      date: tx.date,
-      description: tx.description,
-      amount: tx.amount,
-      category: tx.category || null,
-      subcategory: null,
-      merchant: tx.merchant || null,
-      isTransfer: false,
-      rawData: tx.rawData,
-    }));
+    // Categorize ALL transactions (including duplicates, so user can review them properly)
+    let categorizedTransactions: (CategorizedTransaction & { isDuplicate: boolean; includeDuplicate: boolean })[] =
+      transactionsWithDuplicateFlag.map(tx => ({
+        date: tx.date,
+        description: tx.description,
+        amount: tx.amount,
+        category: tx.category || null,
+        subcategory: null,
+        merchant: tx.merchant || null,
+        isTransfer: false,
+        rawData: tx.rawData,
+        originalCategory: tx.category || null,
+        isDuplicate: tx.isDuplicate,
+        includeDuplicate: tx.includeDuplicate,
+      }));
 
-    if (newTransactions.length > 0) {
+    if (transactionsWithDuplicateFlag.length > 0) {
       // Try AI categorization if API key is available
       if (process.env.OPENAI_API_KEY) {
         try {
           const categorizations = await categorizeTransactions(
-            newTransactions.map((tx) => ({
+            transactionsWithDuplicateFlag.map((tx) => ({
               description: tx.description,
               amount: tx.amount,
               date: tx.date,
             }))
           );
 
-          categorizedTransactions = newTransactions.map((tx, i) => ({
-            date: tx.date,
-            description: tx.description,
-            amount: tx.amount,
-            rawData: tx.rawData,
-            category: categorizations[i]?.category || tx.category || null,
-            subcategory: categorizations[i]?.subcategory || null,
-            merchant: categorizations[i]?.merchant || tx.merchant || null,
-            isTransfer: categorizations[i]?.isTransfer || false,
-          }));
-        } catch (error) {
-          console.error('AI categorization failed, using rules:', error);
-          // Fall back to rule-based categorization
-          categorizedTransactions = newTransactions.map((tx) => {
-            const result = categorizeWithRules(tx.description, tx.amount);
+          categorizedTransactions = transactionsWithDuplicateFlag.map((tx, i) => {
+            const category = categorizations[i]?.category || tx.category || null;
             return {
               date: tx.date,
               description: tx.description,
               amount: tx.amount,
               rawData: tx.rawData,
-              category: tx.category || result.category,
+              category,
+              subcategory: categorizations[i]?.subcategory || null,
+              merchant: categorizations[i]?.merchant || tx.merchant || null,
+              isTransfer: categorizations[i]?.isTransfer || false,
+              originalCategory: category,
+              isDuplicate: tx.isDuplicate,
+              includeDuplicate: tx.includeDuplicate,
+            };
+          });
+        } catch (error) {
+          console.error('AI categorization failed, using rules:', error);
+          // Fall back to rule-based categorization
+          categorizedTransactions = transactionsWithDuplicateFlag.map((tx) => {
+            const result = categorizeWithRules(tx.description, tx.amount);
+            const category = tx.category || result.category;
+            return {
+              date: tx.date,
+              description: tx.description,
+              amount: tx.amount,
+              rawData: tx.rawData,
+              category,
               subcategory: result.subcategory || null,
               merchant: tx.merchant || result.merchant,
               isTransfer: result.isTransfer || false,
+              originalCategory: category,
+              isDuplicate: tx.isDuplicate,
+              includeDuplicate: tx.includeDuplicate,
             };
           });
         }
       } else {
         // Use rule-based categorization
-        categorizedTransactions = newTransactions.map((tx) => {
+        categorizedTransactions = transactionsWithDuplicateFlag.map((tx) => {
           const result = categorizeWithRules(tx.description, tx.amount);
+          const category = tx.category || result.category;
           return {
             date: tx.date,
             description: tx.description,
             amount: tx.amount,
             rawData: tx.rawData,
-            category: tx.category || result.category,
+            category,
             subcategory: result.subcategory || null,
             merchant: tx.merchant || result.merchant,
             isTransfer: result.isTransfer || false,
+            originalCategory: category,
+            isDuplicate: tx.isDuplicate,
+            includeDuplicate: tx.includeDuplicate,
           };
         });
       }

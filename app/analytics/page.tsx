@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
 import { StatCard } from '@/components/StatCard';
@@ -393,8 +394,19 @@ export default function AnalyticsPage() {
                   const percentage = data.stats.totalExpenses !== 0
                     ? (cat.total / data.stats.totalExpenses) * 100
                     : 0;
+                  // Build the link URL with category and date filters
+                  const params = new URLSearchParams();
+                  params.set('category', cat.category);
+                  if (dateRange.startDate) params.set('startDate', dateRange.startDate);
+                  if (dateRange.endDate) params.set('endDate', dateRange.endDate);
+                  const href = `/transactions?${params.toString()}`;
+
                   return (
-                    <div key={cat.category} className="space-y-1.5">
+                    <Link
+                      key={cat.category}
+                      href={href}
+                      className="block space-y-1.5 p-2 -mx-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-medium">{cat.category}</span>
                         <span className="text-muted-foreground">
@@ -407,7 +419,7 @@ export default function AnalyticsPage() {
                           style={{ width: `${Math.min(percentage, 100)}%` }}
                         />
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
