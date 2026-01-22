@@ -37,6 +37,13 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Electron (kept local, not in public repo)
+/electron/
+/build/
+electron-builder.yml
+scripts/clean-standalone.js
+ELECTRON.local.md
+
 # vercel
 .vercel
 
