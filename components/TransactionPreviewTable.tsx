@@ -20,7 +20,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  ArrowsUpDownIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const CATEGORIES = [
@@ -191,7 +197,7 @@ export function TransactionPreviewTable({
       className="flex items-center gap-1 hover:text-foreground transition-colors"
     >
       {children}
-      <ArrowUpDown className={cn(
+      <ArrowsUpDownIcon className={cn(
         "h-3 w-3",
         sortField === field ? "text-foreground" : "text-muted-foreground/50"
       )} />
@@ -216,7 +222,7 @@ export function TransactionPreviewTable({
         ))}
         {duplicateCount > 0 && (
           <Badge variant="outline" className="text-xs border-orange-500 text-orange-600">
-            <AlertTriangle className="h-3 w-3 mr-1" />
+            <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
             {duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''} detected
             {includedDuplicateCount > 0 && ` (${includedDuplicateCount} included)`}
           </Badge>
@@ -225,7 +231,7 @@ export function TransactionPreviewTable({
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search transactions..."
           value={search}
@@ -300,7 +306,7 @@ export function TransactionPreviewTable({
                         )}
                         {tx.isDuplicate && (
                           <div className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1 mt-0.5">
-                            <AlertTriangle className="h-3 w-3" />
+                            <ExclamationTriangleIcon className="h-3 w-3" />
                             Possible duplicate
                           </div>
                         )}
@@ -360,7 +366,7 @@ export function TransactionPreviewTable({
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeftIcon className="h-4 w-4" />
             </Button>
             <span className="text-sm">
               Page {currentPage} of {totalPages}
@@ -371,7 +377,7 @@ export function TransactionPreviewTable({
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRightIcon className="h-4 w-4" />
             </Button>
           </div>
         </div>

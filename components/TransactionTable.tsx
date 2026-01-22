@@ -44,7 +44,17 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, formatCurrency, formatDate, getCategoryColor } from '@/lib/utils';
-import { MoreHorizontal, Search, ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight, Filter, X, StickyNote } from 'lucide-react';
+import {
+  EllipsisHorizontalIcon,
+  MagnifyingGlassIcon,
+  ArrowsUpDownIcon,
+  ArrowPathIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  FunnelIcon,
+  XMarkIcon,
+  DocumentIcon,
+} from '@heroicons/react/24/outline';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, parseISO } from 'date-fns';
 
 // Separate component for note editing to prevent re-renders of the main table
@@ -377,7 +387,7 @@ export function TransactionTable({
       {/* Search and Filter Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search transactions..."
             value={search}
@@ -389,7 +399,7 @@ export function TransactionTable({
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="gap-2">
-              <Filter className="h-4 w-4" />
+              <FunnelIcon className="h-4 w-4" />
               Filters
               {activeFilterCount > 0 && (
                 <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
@@ -583,7 +593,7 @@ export function TransactionTable({
             onClick={onRecategorize}
             disabled={isLoading}
           >
-            <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
+            <ArrowPathIcon className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
             Categorize All
           </Button>
         )}
@@ -607,7 +617,7 @@ export function TransactionTable({
                   onClick={() => toggleCategoryFilter(cat)}
                   className="ml-0.5 hover:bg-white/20 rounded-full p-0.5"
                 >
-                  <X className="h-3 w-3" />
+                  <XMarkIcon className="h-3 w-3" />
                 </button>
               </span>
             ))}
@@ -618,7 +628,7 @@ export function TransactionTable({
                   onClick={() => setAccountFilter('all')}
                   className="ml-1 hover:bg-muted rounded-full p-0.5"
                 >
-                  <X className="h-3 w-3" />
+                  <XMarkIcon className="h-3 w-3" />
                 </button>
               </Badge>
             )}
@@ -629,7 +639,7 @@ export function TransactionTable({
                   onClick={() => setTransactionType('all')}
                   className="ml-1 hover:bg-muted rounded-full p-0.5"
                 >
-                  <X className="h-3 w-3" />
+                  <XMarkIcon className="h-3 w-3" />
                 </button>
               </Badge>
             )}
@@ -643,7 +653,7 @@ export function TransactionTable({
                   }}
                   className="ml-1 hover:bg-muted rounded-full p-0.5"
                 >
-                  <X className="h-3 w-3" />
+                  <XMarkIcon className="h-3 w-3" />
                 </button>
               </Badge>
             )}
@@ -690,7 +700,7 @@ export function TransactionTable({
               >
                 <div className="flex items-center gap-1">
                   Date
-                  <ArrowUpDown className="h-4 w-4" />
+                  <ArrowsUpDownIcon className="h-4 w-4" />
                 </div>
               </TableHead>
               <TableHead>Description</TableHead>
@@ -702,7 +712,7 @@ export function TransactionTable({
               >
                 <div className="flex items-center justify-end gap-1">
                   Amount
-                  <ArrowUpDown className="h-4 w-4" />
+                  <ArrowsUpDownIcon className="h-4 w-4" />
                 </div>
               </TableHead>
               <TableHead className="w-[50px]"></TableHead>
@@ -737,7 +747,7 @@ export function TransactionTable({
                         <Popover>
                           <PopoverTrigger asChild>
                             <button className="flex-shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                              <StickyNote className="h-4 w-4" />
+                              <DocumentIcon className="h-4 w-4" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-64 p-3" align="start">
@@ -814,7 +824,7 @@ export function TransactionTable({
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
+                          <EllipsisHorizontalIcon className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -920,7 +930,7 @@ export function TransactionTable({
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeftIcon className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-1">
               {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -956,7 +966,7 @@ export function TransactionTable({
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRightIcon className="h-4 w-4" />
             </Button>
           </div>
         )}

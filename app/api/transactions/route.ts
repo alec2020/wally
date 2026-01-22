@@ -6,6 +6,9 @@ import {
   deleteTransaction,
   getTransactionStats,
   upsertPreferenceForMerchant,
+  getLiabilityPaymentByTransactionId,
+  reversePaymentFromLiability,
+  processTransactionForLiabilityPayments,
 } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -64,6 +67,18 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Check if this transaction has an associated liability payment
+    const existingPayment = getLiabilityPaymentByTransactionId(id);
+
+    // If amount is being changed and there's an applied payment, reverse it
+    if (updates.amount !== undefined && updates.amount !== existing.amount && existingPayment) {
+      if (existingPayment.status === 'applied') {
+        reversePaymentFromLiability(existingPayment.id);
+        // After reversal, re-process for liability payments with the new amount
+        // This will be done after the transaction is updated
+      }
+    }
+
     updateTransaction(id, updates);
 
     // Learn from category corrections - generate a natural language preference
@@ -84,6 +99,11 @@ export async function PATCH(request: NextRequest) {
       }
 
       upsertPreferenceForMerchant(merchantName, instruction, 'learned');
+    }
+
+    // If amount was changed and there was a payment, re-process for new amount
+    if (updates.amount !== undefined && updates.amount !== existing.amount && existingPayment) {
+      processTransactionForLiabilityPayments(id);
     }
 
     const updated = getTransactionById(id);
@@ -116,6 +136,13 @@ export async function DELETE(request: NextRequest) {
         { error: 'Transaction not found' },
         { status: 404 }
       );
+    }
+
+    // Check if this transaction has an associated liability payment
+    const existingPayment = getLiabilityPaymentByTransactionId(parseInt(id));
+    if (existingPayment && existingPayment.status === 'applied') {
+      // Reverse the payment before deleting the transaction
+      reversePaymentFromLiability(existingPayment.id);
     }
 
     deleteTransaction(parseInt(id));

@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn, formatCurrency } from '@/lib/utils';
-import { LucideIcon, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowTrendingDownIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 
 interface StatCardProps {
   title: string;
   subtitle?: string;
   value: number;
-  icon: LucideIcon;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   trend?: number;
   format?: 'currency' | 'number' | 'percent';
   className?: string;
@@ -98,9 +98,9 @@ export function StatCard({
         {trend !== undefined && (
           <div className="mt-1 flex items-center gap-1 text-xs">
             {trendIsPositive ? (
-              <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-500" />
+              <ArrowTrendingUpIcon className="h-3 w-3 text-emerald-600 dark:text-emerald-500" />
             ) : (
-              <TrendingDown className="h-3 w-3 text-red-600 dark:text-red-500" />
+              <ArrowTrendingDownIcon className="h-3 w-3 text-red-600 dark:text-red-500" />
             )}
             <span
               className={cn(

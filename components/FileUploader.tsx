@@ -2,7 +2,15 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Plus, Sparkles } from 'lucide-react';
+import {
+  ArrowUpTrayIcon,
+  DocumentTextIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  ArrowPathIcon,
+  PlusIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -233,7 +241,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <CheckCircle className="h-16 w-16 text-emerald-600 dark:text-emerald-500 mb-4" />
+          <CheckCircleIcon className="h-16 w-16 text-emerald-600 dark:text-emerald-500 mb-4" />
           <h3 className="text-xl font-semibold mb-2">Upload Complete!</h3>
           <p className="text-muted-foreground mb-4">
             Imported {uploadResult.imported} transactions
@@ -262,7 +270,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
             )}
           >
             <input {...getInputProps()} />
-            <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <ArrowUpTrayIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             {isDragActive ? (
               <p className="text-emerald-600 dark:text-emerald-500">Drop your statement here...</p>
             ) : (
@@ -279,7 +287,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
 
           {error && (
             <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-400">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <ExclamationCircleIcon className="h-5 w-5 flex-shrink-0" />
               {error}
             </div>
           )}
@@ -291,8 +299,8 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="relative">
-              <Loader2 className="h-12 w-12 animate-spin text-emerald-600 dark:text-emerald-500" />
-              <Sparkles className="h-5 w-5 text-amber-500 absolute -top-1 -right-1 animate-pulse" />
+              <ArrowPathIcon className="h-12 w-12 animate-spin text-emerald-600 dark:text-emerald-500" />
+              <SparklesIcon className="h-5 w-5 text-amber-500 absolute -top-1 -right-1 animate-pulse" />
             </div>
             <h3 className="text-lg font-semibold mt-4">
               Analyzing statement...
@@ -309,7 +317,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+              <DocumentTextIcon className="h-5 w-5" />
               Review Transactions: {file?.name}
             </CardTitle>
           </CardHeader>
@@ -350,7 +358,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
                   ))}
                   <SelectItem value="new">
                     <div className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
+                      <PlusIcon className="h-4 w-4" />
                       Create new account
                     </div>
                   </SelectItem>
@@ -388,7 +396,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
                   onClick={handleUpload}
                   disabled={stage === 'uploading' || transactionsToImport.length === 0}
                 >
-                  {stage === 'uploading' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {stage === 'uploading' && <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />}
                   Import {transactionsToImport.length} Transaction{transactionsToImport.length !== 1 ? 's' : ''}
                 </Button>
               </div>

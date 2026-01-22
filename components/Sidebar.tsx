@@ -2,73 +2,117 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
 import {
-  LayoutDashboard,
-  Receipt,
-  Upload,
-  BarChart3,
-  Settings,
-  Wallet,
-  PiggyBank,
-} from 'lucide-react';
+  Squares2X2Icon,
+  ReceiptPercentIcon,
+  ArrowUpTrayIcon,
+  ChartBarIcon,
+  Cog6ToothIcon,
+  WalletIcon,
+  BanknotesIcon,
+  Bars3BottomLeftIcon,
+  Bars3Icon,
+} from '@heroicons/react/24/outline';
 import { ThemeToggle } from './ThemeToggle';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Transactions', href: '/transactions', icon: Receipt },
-  { name: 'Upload', href: '/upload', icon: Upload },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Net Worth', href: '/net-worth', icon: PiggyBank },
+  { name: 'Dashboard', href: '/', icon: Squares2X2Icon },
+  { name: 'Transactions', href: '/transactions', icon: ReceiptPercentIcon },
+  { name: 'Upload', href: '/upload', icon: ArrowUpTrayIcon },
+  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
+  { name: 'Net Worth', href: '/net-worth', icon: BanknotesIcon },
 ];
 
-export function Sidebar() {
+export function AppSidebar() {
   const pathname = usePathname();
+  const { state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
 
   return (
-    <div className="flex h-full w-64 flex-col bg-neutral-900">
-      <div className="flex h-16 shrink-0 items-center gap-2 px-6">
-        <Wallet className="h-8 w-8 text-emerald-500" />
-        <span className="text-xl font-bold text-white">FinanceTracker</span>
-      </div>
-      <nav className="flex flex-1 flex-col px-4 py-4">
-        <ul role="list" className="flex flex-1 flex-col gap-1">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <li key={item.name}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'group flex gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-emerald-500/20 text-white'
-                      : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      'h-5 w-5 shrink-0',
-                      isActive ? 'text-emerald-500' : 'text-gray-400 group-hover:text-white'
-                    )}
-                  />
-                  {item.name}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-auto space-y-2 px-3">
-          <ThemeToggle />
-          <Link
-            href="/settings"
-            className="group flex gap-3 rounded-md py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-800 hover:text-white"
-          >
-            <Settings className="h-5 w-5 shrink-0 text-gray-400 group-hover:text-white" />
-            Settings
-          </Link>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader className="p-2 pt-4">
+        <Link href="/" className="flex h-8 items-center">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
+            <WalletIcon className="h-4 w-4 text-primary-foreground" />
+          </div>
+          <span className="ml-2 overflow-hidden whitespace-nowrap text-lg font-bold text-sidebar-foreground transition-all duration-200 ease-linear group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
+            FinanceTracker
+          </span>
+        </Link>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            {navigation.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <SidebarMenuItem key={item.name}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={item.name}
+                    className={
+                      isActive
+                        ? 'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                        : ''
+                    }
+                  >
+                    <Link href={item.href}>
+                      <item.icon
+                        className={
+                          isActive
+                            ? 'text-primary'
+                            : 'text-sidebar-foreground/70'
+                        }
+                      />
+                      <span>{item.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Settings">
+              <Link href="/settings">
+                <Cog6ToothIcon className="h-5 w-5 text-sidebar-foreground/70" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        <div className="flex items-center justify-between gap-2 px-2 pt-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <div className="group-data-[collapsible=icon]:hidden">
+            <ThemeToggle />
+          </div>
+          <SidebarTrigger className="text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent">
+            {isCollapsed ? (
+              <Bars3Icon className="h-4 w-4" />
+            ) : (
+              <Bars3BottomLeftIcon className="h-4 w-4" />
+            )}
+          </SidebarTrigger>
         </div>
-      </nav>
-    </div>
+      </SidebarFooter>
+    </Sidebar>
   );
 }

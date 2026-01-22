@@ -9,12 +9,12 @@ import { MonthlyExpenseTrendsChart } from '@/components/charts/MonthlyExpenseTre
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  TrendingUp,
-  TrendingDown,
-  Upload,
-  PiggyBank,
-  Landmark,
-} from 'lucide-react';
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  ArrowUpTrayIcon,
+  BanknotesIcon,
+  BuildingLibraryIcon,
+} from '@heroicons/react/24/outline';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeAnalytics } from '@/lib/fake-data';
 
@@ -96,14 +96,14 @@ export default function Dashboard() {
         </div>
         <Card className="max-w-xl mx-auto">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Upload className="h-16 w-16 text-muted-foreground mb-4" />
+            <ArrowUpTrayIcon className="h-16 w-16 text-muted-foreground mb-4" />
             <h3 className="text-xl font-semibold mb-2">No transactions yet</h3>
             <p className="text-muted-foreground mb-6 text-center">
               Upload your first bank or credit card statement to get started
             </p>
             <Link href="/upload">
               <Button>
-                <Upload className="mr-2 h-4 w-4" />
+                <ArrowUpTrayIcon className="mr-2 h-4 w-4" />
                 Upload Statement
               </Button>
             </Link>
@@ -126,26 +126,26 @@ export default function Dashboard() {
           title="Net Worth"
           value={data.currentNetWorth}
           subtitle={data.netWorthUpdatedAt ? `Updated ${new Date(data.netWorthUpdatedAt + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : undefined}
-          icon={PiggyBank}
+          icon={BanknotesIcon}
         />
         <StatCard
           title="Income"
           value={data.currentMonth.income}
           subtitle="This month"
-          icon={TrendingUp}
+          icon={ArrowTrendingUpIcon}
         />
         <StatCard
           title="Expenses"
           value={Math.abs(data.currentMonth.expenses)}
           subtitle="This month"
-          icon={TrendingDown}
+          icon={ArrowTrendingDownIcon}
           variant="negative"
         />
         <StatCard
           title="Invested"
           value={data.currentMonth.invested}
           subtitle="This month"
-          icon={Landmark}
+          icon={BuildingLibraryIcon}
         />
       </div>
 

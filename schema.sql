@@ -99,12 +99,44 @@ CREATE TABLE IF NOT EXISTS statement_uploads (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Liability payment rules (link transaction patterns to liabilities)
+CREATE TABLE IF NOT EXISTS liability_payment_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  liability_id INTEGER NOT NULL REFERENCES liabilities(id) ON DELETE CASCADE,
+  match_merchant TEXT,
+  match_description TEXT,
+  match_account_id INTEGER REFERENCES accounts(id),
+  rule_description TEXT NOT NULL,
+  auto_apply BOOLEAN DEFAULT TRUE,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Liability payments (track transactions applied as payments to liabilities)
+CREATE TABLE IF NOT EXISTS liability_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  liability_id INTEGER NOT NULL REFERENCES liabilities(id) ON DELETE CASCADE,
+  transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+  rule_id INTEGER REFERENCES liability_payment_rules(id) ON DELETE SET NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  balance_before DECIMAL(10,2) NOT NULL,
+  balance_after DECIMAL(10,2) NOT NULL,
+  status TEXT DEFAULT 'pending',
+  applied_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(liability_id, transaction_id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
 CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_snapshots_month ON monthly_snapshots(month);
 CREATE INDEX IF NOT EXISTS idx_statement_uploads_account ON statement_uploads(account_id);
+CREATE INDEX IF NOT EXISTS idx_liability_payment_rules_liability ON liability_payment_rules(liability_id);
+CREATE INDEX IF NOT EXISTS idx_liability_payments_liability ON liability_payments(liability_id);
+CREATE INDEX IF NOT EXISTS idx_liability_payments_transaction ON liability_payments(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_liability_payments_status ON liability_payments(status);
 
 -- Insert predefined categories
 INSERT OR IGNORE INTO categories (name, color, icon) VALUES

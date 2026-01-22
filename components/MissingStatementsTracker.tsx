@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Calendar } from 'lucide-react';
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  CalendarIcon,
+} from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 
 interface AccountCoverage {
@@ -121,9 +127,9 @@ export function MissingStatementsTracker({ refreshTrigger }: MissingStatementsTr
                 >
                   <span className="font-medium">{formatMonth(month)}</span>
                   {account.coverage[month] ? (
-                    <CheckCircle2 className="h-3 w-3 mt-0.5" />
+                    <CheckCircleIcon className="h-3 w-3 mt-0.5" />
                   ) : (
-                    <AlertTriangle className="h-3 w-3 mt-0.5" />
+                    <ExclamationTriangleIcon className="h-3 w-3 mt-0.5" />
                   )}
                 </div>
               ))}
@@ -139,7 +145,7 @@ export function MissingStatementsTracker({ refreshTrigger }: MissingStatementsTr
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Calendar className="h-5 w-5" />
+            <CalendarIcon className="h-5 w-5" />
             Statement Coverage
           </CardTitle>
           <Button
@@ -149,9 +155,9 @@ export function MissingStatementsTracker({ refreshTrigger }: MissingStatementsTr
             className="h-8 px-2"
           >
             {expanded ? (
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUpIcon className="h-4 w-4" />
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDownIcon className="h-4 w-4" />
             )}
           </Button>
         </div>
@@ -161,12 +167,12 @@ export function MissingStatementsTracker({ refreshTrigger }: MissingStatementsTr
         <div className="flex items-center gap-3 mb-4">
           {totalMissing === 0 ? (
             <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 hover:bg-emerald-100">
-              <CheckCircle2 className="h-3 w-3 mr-1" />
+              <CheckCircleIcon className="h-3 w-3 mr-1" />
               All statements uploaded
             </Badge>
           ) : (
             <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="h-3 w-3 mr-1" />
+              <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
               {totalMissing} missing statement{totalMissing !== 1 ? 's' : ''} across {accountsWithMissing} account{accountsWithMissing !== 1 ? 's' : ''}
             </Badge>
           )}

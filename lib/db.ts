@@ -86,6 +86,48 @@ export function getDb(): Database.Database {
         CREATE INDEX IF NOT EXISTS idx_statement_uploads_account ON statement_uploads(account_id);
       `);
     }
+
+    // Migration: Create liability_payment_rules table if it doesn't exist
+    const paymentRulesCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='liability_payment_rules'").get();
+    if (!paymentRulesCheck) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS liability_payment_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          liability_id INTEGER NOT NULL REFERENCES liabilities(id) ON DELETE CASCADE,
+          match_merchant TEXT,
+          match_description TEXT,
+          match_account_id INTEGER REFERENCES accounts(id),
+          rule_description TEXT NOT NULL,
+          auto_apply BOOLEAN DEFAULT TRUE,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_liability_payment_rules_liability ON liability_payment_rules(liability_id);
+      `);
+    }
+
+    // Migration: Create liability_payments table if it doesn't exist
+    const liabilityPaymentsCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='liability_payments'").get();
+    if (!liabilityPaymentsCheck) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS liability_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          liability_id INTEGER NOT NULL REFERENCES liabilities(id) ON DELETE CASCADE,
+          transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+          rule_id INTEGER REFERENCES liability_payment_rules(id) ON DELETE SET NULL,
+          amount DECIMAL(10,2) NOT NULL,
+          balance_before DECIMAL(10,2) NOT NULL,
+          balance_after DECIMAL(10,2) NOT NULL,
+          status TEXT DEFAULT 'pending',
+          applied_at DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(liability_id, transaction_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_liability_payments_liability ON liability_payments(liability_id);
+        CREATE INDEX IF NOT EXISTS idx_liability_payments_transaction ON liability_payments(transaction_id);
+        CREATE INDEX IF NOT EXISTS idx_liability_payments_status ON liability_payments(status);
+      `);
+    }
   }
   return db;
 }
@@ -646,9 +688,14 @@ function normalizeMerchantName(name: string): string {
     .trim();
 }
 
-export function getSubscriptions(minOccurrences: number = 1): Subscription[] {
+export function getSubscriptions(minOccurrences: number = 1, startDate?: string, endDate?: string): Subscription[] {
   // Find subscriptions - merchants in Subscriptions category
   // Use manual subscription_frequency if set, otherwise auto-detect
+  // If date range is provided, only show subscriptions active within that period
+  const dateFilter = startDate && endDate
+    ? `AND date >= '${startDate}' AND date <= '${endDate}'`
+    : '';
+
   const results = getDb().prepare(`
     WITH subscription_data AS (
       SELECT
@@ -659,6 +706,7 @@ export function getSubscriptions(minOccurrences: number = 1): Subscription[] {
         subscription_frequency
       FROM transactions
       WHERE amount < 0 AND is_transfer = 0 AND category = 'Subscriptions'
+      ${dateFilter}
     ),
     merchant_stats AS (
       SELECT
@@ -1180,4 +1228,438 @@ export function getAccountCoverage(): {
   });
 
   return { accounts, months };
+}
+
+// Liability Payment Rule operations
+export interface LiabilityPaymentRule {
+  id: number;
+  liability_id: number;
+  match_merchant: string | null;
+  match_description: string | null;
+  match_account_id: number | null;
+  rule_description: string;
+  auto_apply: boolean;
+  is_active: boolean;
+  created_at: string;
+  // Joined fields
+  liability_name?: string;
+  account_name?: string;
+}
+
+export function getLiabilityPaymentRules(liabilityId?: number): LiabilityPaymentRule[] {
+  let query = `
+    SELECT lpr.*, l.name as liability_name, a.name as account_name
+    FROM liability_payment_rules lpr
+    LEFT JOIN liabilities l ON lpr.liability_id = l.id
+    LEFT JOIN accounts a ON lpr.match_account_id = a.id
+  `;
+  const params: number[] = [];
+
+  if (liabilityId) {
+    query += ' WHERE lpr.liability_id = ?';
+    params.push(liabilityId);
+  }
+
+  query += ' ORDER BY lpr.created_at DESC';
+  return getDb().prepare(query).all(...params) as LiabilityPaymentRule[];
+}
+
+export function getLiabilityPaymentRuleById(id: number): LiabilityPaymentRule | undefined {
+  return getDb().prepare(`
+    SELECT lpr.*, l.name as liability_name, a.name as account_name
+    FROM liability_payment_rules lpr
+    LEFT JOIN liabilities l ON lpr.liability_id = l.id
+    LEFT JOIN accounts a ON lpr.match_account_id = a.id
+    WHERE lpr.id = ?
+  `).get(id) as LiabilityPaymentRule | undefined;
+}
+
+export function createLiabilityPaymentRule(rule: Omit<LiabilityPaymentRule, 'id' | 'created_at' | 'liability_name' | 'account_name'>): number {
+  const result = getDb().prepare(`
+    INSERT INTO liability_payment_rules (liability_id, match_merchant, match_description, match_account_id, rule_description, auto_apply, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    rule.liability_id,
+    rule.match_merchant,
+    rule.match_description,
+    rule.match_account_id,
+    rule.rule_description,
+    rule.auto_apply ? 1 : 0,
+    rule.is_active ? 1 : 0
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function updateLiabilityPaymentRule(id: number, updates: Partial<Omit<LiabilityPaymentRule, 'id' | 'created_at' | 'liability_name' | 'account_name'>>): void {
+  const fields: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (updates.liability_id !== undefined) {
+    fields.push('liability_id = ?');
+    params.push(updates.liability_id);
+  }
+  if (updates.match_merchant !== undefined) {
+    fields.push('match_merchant = ?');
+    params.push(updates.match_merchant);
+  }
+  if (updates.match_description !== undefined) {
+    fields.push('match_description = ?');
+    params.push(updates.match_description);
+  }
+  if (updates.match_account_id !== undefined) {
+    fields.push('match_account_id = ?');
+    params.push(updates.match_account_id);
+  }
+  if (updates.rule_description !== undefined) {
+    fields.push('rule_description = ?');
+    params.push(updates.rule_description);
+  }
+  if (updates.auto_apply !== undefined) {
+    fields.push('auto_apply = ?');
+    params.push(updates.auto_apply ? 1 : 0);
+  }
+  if (updates.is_active !== undefined) {
+    fields.push('is_active = ?');
+    params.push(updates.is_active ? 1 : 0);
+  }
+
+  if (fields.length > 0) {
+    params.push(id);
+    getDb().prepare(`UPDATE liability_payment_rules SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+  }
+}
+
+export function deleteLiabilityPaymentRule(id: number): void {
+  getDb().prepare('DELETE FROM liability_payment_rules WHERE id = ?').run(id);
+}
+
+// Liability Payment operations
+export type LiabilityPaymentStatus = 'pending' | 'applied' | 'reversed' | 'skipped';
+
+export interface LiabilityPayment {
+  id: number;
+  liability_id: number;
+  transaction_id: number;
+  rule_id: number | null;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  status: LiabilityPaymentStatus;
+  applied_at: string | null;
+  created_at: string;
+  // Joined fields
+  liability_name?: string;
+  transaction_date?: string;
+  transaction_description?: string;
+  transaction_merchant?: string;
+  rule_description?: string;
+}
+
+export function getLiabilityPayments(filters?: {
+  liabilityId?: number;
+  transactionId?: number;
+  status?: LiabilityPaymentStatus;
+}): LiabilityPayment[] {
+  let query = `
+    SELECT lp.*, l.name as liability_name, t.date as transaction_date, t.description as transaction_description, t.merchant as transaction_merchant, lpr.rule_description
+    FROM liability_payments lp
+    LEFT JOIN liabilities l ON lp.liability_id = l.id
+    LEFT JOIN transactions t ON lp.transaction_id = t.id
+    LEFT JOIN liability_payment_rules lpr ON lp.rule_id = lpr.id
+    WHERE 1=1
+  `;
+  const params: (number | string)[] = [];
+
+  if (filters?.liabilityId) {
+    query += ' AND lp.liability_id = ?';
+    params.push(filters.liabilityId);
+  }
+  if (filters?.transactionId) {
+    query += ' AND lp.transaction_id = ?';
+    params.push(filters.transactionId);
+  }
+  if (filters?.status) {
+    query += ' AND lp.status = ?';
+    params.push(filters.status);
+  }
+
+  query += ' ORDER BY lp.created_at DESC';
+  return getDb().prepare(query).all(...params) as LiabilityPayment[];
+}
+
+export function getLiabilityPaymentById(id: number): LiabilityPayment | undefined {
+  return getDb().prepare(`
+    SELECT lp.*, l.name as liability_name, t.date as transaction_date, t.description as transaction_description, t.merchant as transaction_merchant, lpr.rule_description
+    FROM liability_payments lp
+    LEFT JOIN liabilities l ON lp.liability_id = l.id
+    LEFT JOIN transactions t ON lp.transaction_id = t.id
+    LEFT JOIN liability_payment_rules lpr ON lp.rule_id = lpr.id
+    WHERE lp.id = ?
+  `).get(id) as LiabilityPayment | undefined;
+}
+
+export function getLiabilityPaymentByTransactionId(transactionId: number): LiabilityPayment | undefined {
+  return getDb().prepare(`
+    SELECT lp.*, l.name as liability_name, t.date as transaction_date, t.description as transaction_description, t.merchant as transaction_merchant, lpr.rule_description
+    FROM liability_payments lp
+    LEFT JOIN liabilities l ON lp.liability_id = l.id
+    LEFT JOIN transactions t ON lp.transaction_id = t.id
+    LEFT JOIN liability_payment_rules lpr ON lp.rule_id = lpr.id
+    WHERE lp.transaction_id = ?
+  `).get(transactionId) as LiabilityPayment | undefined;
+}
+
+export function createLiabilityPayment(payment: Omit<LiabilityPayment, 'id' | 'created_at' | 'liability_name' | 'transaction_date' | 'transaction_description' | 'rule_description'>): number {
+  const result = getDb().prepare(`
+    INSERT INTO liability_payments (liability_id, transaction_id, rule_id, amount, balance_before, balance_after, status, applied_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    payment.liability_id,
+    payment.transaction_id,
+    payment.rule_id,
+    payment.amount,
+    payment.balance_before,
+    payment.balance_after,
+    payment.status,
+    payment.applied_at
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function updateLiabilityPaymentStatus(id: number, status: LiabilityPaymentStatus, balanceAfter?: number): void {
+  if (status === 'applied') {
+    getDb().prepare(`
+      UPDATE liability_payments SET status = ?, applied_at = CURRENT_TIMESTAMP, balance_after = COALESCE(?, balance_after) WHERE id = ?
+    `).run(status, balanceAfter ?? null, id);
+  } else {
+    getDb().prepare(`
+      UPDATE liability_payments SET status = ?, balance_after = COALESCE(?, balance_after) WHERE id = ?
+    `).run(status, balanceAfter ?? null, id);
+  }
+}
+
+export function deleteLiabilityPayment(id: number): void {
+  getDb().prepare('DELETE FROM liability_payments WHERE id = ?').run(id);
+}
+
+// Find matching payment rules for a transaction
+export function findMatchingPaymentRules(transaction: Transaction): LiabilityPaymentRule[] {
+  const rules = getLiabilityPaymentRules().filter(r => r.is_active);
+  const matches: LiabilityPaymentRule[] = [];
+
+  for (const rule of rules) {
+    let isMatch = false;
+
+    // Check merchant match
+    if (rule.match_merchant) {
+      const merchantPattern = rule.match_merchant.toLowerCase();
+      const txMerchant = (transaction.merchant || transaction.description || '').toLowerCase();
+      if (txMerchant.includes(merchantPattern)) {
+        isMatch = true;
+      }
+    }
+
+    // Check description match
+    if (rule.match_description && !isMatch) {
+      const descPattern = rule.match_description.toLowerCase();
+      const txDesc = transaction.description.toLowerCase();
+      if (txDesc.includes(descPattern)) {
+        isMatch = true;
+      }
+    }
+
+    // Check account match (if specified, must also match)
+    if (isMatch && rule.match_account_id !== null) {
+      if (transaction.account_id !== rule.match_account_id) {
+        isMatch = false;
+      }
+    }
+
+    // Only match expense transactions (negative amounts)
+    if (isMatch && transaction.amount >= 0) {
+      isMatch = false;
+    }
+
+    if (isMatch) {
+      matches.push(rule);
+    }
+  }
+
+  return matches;
+}
+
+// Apply a payment to a liability
+export function applyPaymentToLiability(
+  transactionId: number,
+  liabilityId: number,
+  ruleId: number | null,
+  autoApply: boolean = false
+): { success: boolean; payment?: LiabilityPayment; error?: string } {
+  const transaction = getTransactionById(transactionId);
+  if (!transaction) {
+    return { success: false, error: 'Transaction not found' };
+  }
+
+  const liability = getLiabilityById(liabilityId);
+  if (!liability) {
+    return { success: false, error: 'Liability not found' };
+  }
+
+  // Check for existing payment record for this transaction/liability combo
+  const existing = getDb().prepare(`
+    SELECT id FROM liability_payments WHERE liability_id = ? AND transaction_id = ?
+  `).get(liabilityId, transactionId) as { id: number } | undefined;
+
+  if (existing) {
+    return { success: false, error: 'Payment already exists for this transaction' };
+  }
+
+  // Payment amount is the absolute value of the transaction (expenses are negative)
+  const paymentAmount = Math.abs(transaction.amount);
+  const balanceBefore = liability.current_balance;
+  const balanceAfter = Math.max(0, balanceBefore - paymentAmount);
+
+  const status: LiabilityPaymentStatus = autoApply ? 'applied' : 'pending';
+
+  const paymentId = createLiabilityPayment({
+    liability_id: liabilityId,
+    transaction_id: transactionId,
+    rule_id: ruleId,
+    amount: paymentAmount,
+    balance_before: balanceBefore,
+    balance_after: balanceAfter,
+    status,
+    applied_at: autoApply ? new Date().toISOString() : null,
+  });
+
+  // If auto-applying, update the liability balance
+  if (autoApply) {
+    updateLiability(liabilityId, { current_balance: balanceAfter });
+  }
+
+  const payment = getLiabilityPaymentById(paymentId);
+  return { success: true, payment };
+}
+
+// Apply a pending payment (user approved)
+export function applyPendingPayment(paymentId: number): { success: boolean; error?: string } {
+  const payment = getLiabilityPaymentById(paymentId);
+  if (!payment) {
+    return { success: false, error: 'Payment not found' };
+  }
+
+  if (payment.status !== 'pending') {
+    return { success: false, error: `Payment status is ${payment.status}, cannot apply` };
+  }
+
+  const liability = getLiabilityById(payment.liability_id);
+  if (!liability) {
+    return { success: false, error: 'Liability not found' };
+  }
+
+  // Calculate the new balance based on current balance (not the snapshot)
+  const balanceAfter = Math.max(0, liability.current_balance - payment.amount);
+
+  // Update payment status with the actual new balance
+  updateLiabilityPaymentStatus(paymentId, 'applied', balanceAfter);
+
+  // Update the liability balance
+  updateLiability(payment.liability_id, { current_balance: balanceAfter });
+
+  return { success: true };
+}
+
+// Reverse an applied payment (e.g., when transaction is deleted or edited)
+export function reversePaymentFromLiability(paymentId: number): { success: boolean; error?: string } {
+  const payment = getLiabilityPaymentById(paymentId);
+  if (!payment) {
+    return { success: false, error: 'Payment not found' };
+  }
+
+  if (payment.status !== 'applied') {
+    return { success: false, error: `Payment status is ${payment.status}, cannot reverse` };
+  }
+
+  const liability = getLiabilityById(payment.liability_id);
+  if (!liability) {
+    return { success: false, error: 'Liability not found' };
+  }
+
+  // Restore the balance by adding back the payment amount
+  const newBalance = liability.current_balance + payment.amount;
+
+  // Update payment status to reversed
+  updateLiabilityPaymentStatus(paymentId, 'reversed');
+
+  // Update the liability balance
+  updateLiability(payment.liability_id, { current_balance: newBalance });
+
+  return { success: true };
+}
+
+// Skip a pending payment
+export function skipPendingPayment(paymentId: number): { success: boolean; error?: string } {
+  const payment = getLiabilityPaymentById(paymentId);
+  if (!payment) {
+    return { success: false, error: 'Payment not found' };
+  }
+
+  if (payment.status !== 'pending') {
+    return { success: false, error: `Payment status is ${payment.status}, cannot skip` };
+  }
+
+  updateLiabilityPaymentStatus(paymentId, 'skipped');
+  return { success: true };
+}
+
+// Process a transaction for liability payments (called after import or categorization)
+export function processTransactionForLiabilityPayments(transactionId: number): {
+  matched: boolean;
+  payments: LiabilityPayment[];
+} {
+  const transaction = getTransactionById(transactionId);
+  if (!transaction || transaction.amount >= 0) {
+    return { matched: false, payments: [] };
+  }
+
+  const matchingRules = findMatchingPaymentRules(transaction);
+  const payments: LiabilityPayment[] = [];
+
+  for (const rule of matchingRules) {
+    const result = applyPaymentToLiability(
+      transactionId,
+      rule.liability_id,
+      rule.id,
+      rule.auto_apply
+    );
+    if (result.success && result.payment) {
+      payments.push(result.payment);
+    }
+    // Only apply first matching rule to avoid double-counting
+    break;
+  }
+
+  return { matched: payments.length > 0, payments };
+}
+
+// Get pending payment count for a liability (for badges)
+export function getPendingPaymentCount(liabilityId?: number): number {
+  let query = 'SELECT COUNT(*) as count FROM liability_payments WHERE status = ?';
+  const params: (string | number)[] = ['pending'];
+
+  if (liabilityId) {
+    query += ' AND liability_id = ?';
+    params.push(liabilityId);
+  }
+
+  const result = getDb().prepare(query).get(...params) as { count: number };
+  return result.count;
+}
+
+// Get total payments applied to a liability
+export function getTotalAppliedPayments(liabilityId: number): number {
+  const result = getDb().prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total FROM liability_payments WHERE liability_id = ? AND status = 'applied'
+  `).get(liabilityId) as { total: number };
+  return result.total;
 }

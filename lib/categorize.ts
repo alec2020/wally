@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { getCategoryNames, getUserPreferences, getAiSetting } from './db';
+import { getCategoryNames, getUserPreferences, getAiSetting, getLiabilityPaymentRules, getLiabilities } from './db';
 
 // Default categories used as fallback
 const DEFAULT_CATEGORIES = [
@@ -50,6 +50,7 @@ export interface CategorizationResult {
   merchant: string;
   confidence: number;
   isTransfer?: boolean;
+  liabilityId?: number;  // ID of matching liability for debt payments
 }
 
 export interface TransactionToCategorizeto {
@@ -144,18 +145,44 @@ If a preference includes conditions (like "above $1200" or "over $50"), ONLY app
 `
     : '';
 
+  // Get liability payment rules for debt payment detection
+  const paymentRules = getLiabilityPaymentRules().filter(r => r.is_active);
+  const liabilities = getLiabilities();
+
+  let liabilitySection = '';
+  if (paymentRules.length > 0) {
+    const rulesContext = paymentRules.map(rule => {
+      const liability = liabilities.find(l => l.id === rule.liability_id);
+      const liabilityName = liability?.name || 'Unknown Debt';
+      const matchCriteria = [
+        rule.match_merchant ? `merchant contains "${rule.match_merchant}"` : null,
+        rule.match_description ? `description contains "${rule.match_description}"` : null,
+      ].filter(Boolean).join(' or ');
+      return `- If ${matchCriteria}, this is a payment for "${liabilityName}" (liability_id: ${rule.liability_id})`;
+    }).join('\n');
+
+    liabilitySection = `
+DEBT PAYMENT RULES (identify liability payments):
+${rulesContext}
+
+If a transaction matches a debt payment rule, include "liabilityId" in the response with the matching liability_id number.
+`;
+  }
+
   const prompt = `Categorize these financial transactions. For each, provide:
 1. Category (one of: ${categories.join(', ')})
 2. Subcategory (optional, based on the category)
 3. Clean merchant name (the recognizable business name)
 4. isTransfer (true if this is a transfer between accounts, credit card payment, or similar - not true spending)
-${preferencesSection}
+5. liabilityId (optional, only if this matches a debt payment rule below)
+${preferencesSection}${liabilitySection}
 Transactions:
 ${transactionList}
 
 Respond in JSON format:
 [
   {"index": 1, "category": "Food", "subcategory": "Restaurants", "merchant": "Chipotle", "confidence": 0.95, "isTransfer": false},
+  {"index": 2, "category": "Financial", "subcategory": "Fees", "merchant": "Wells Fargo", "confidence": 0.95, "isTransfer": false, "liabilityId": 1},
   ...
 ]
 
@@ -194,6 +221,7 @@ Be concise. Only return the JSON array.`;
       merchant: string;
       confidence?: number;
       isTransfer?: boolean;
+      liabilityId?: number;
     }>;
 
     return transactions.map((tx, i) => {
@@ -218,6 +246,7 @@ Be concise. Only return the JSON array.`;
         merchant: result.merchant || tx.description,
         confidence: result.confidence || 0.8,
         isTransfer: result.isTransfer || false,
+        liabilityId: result.liabilityId,
       };
     });
   } catch (error) {

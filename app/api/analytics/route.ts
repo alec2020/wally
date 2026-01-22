@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
     const netWorthHistory = getNetWorthHistory();
     const latestBalances = getLatestBalances();
     const monthlyExpensesByCategory = getMonthlyExpensesByCategory();
-    const subscriptions = getSubscriptions(2);
+    // When filtering by date range, use minOccurrences=1 since we're looking at a specific period
+    // When viewing all time, use minOccurrences=2 to filter out one-off miscategorized payments
+    const subscriptions = getSubscriptions(startDate && endDate ? 1 : 2, startDate, endDate);
     const savingsRateData = getMonthlySavingsRate(12);
     const merchantFrequency = getMerchantFrequency(20);
     // Calculate net worth including assets and liabilities

@@ -14,7 +14,16 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn, formatCurrency, formatMonth } from '@/lib/utils';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, DollarSign, TrendingDown, Receipt, PiggyBank, Store } from 'lucide-react';
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CurrencyDollarIcon,
+  ArrowTrendingDownIcon,
+  ReceiptPercentIcon,
+  BanknotesIcon,
+  BuildingStorefrontIcon,
+} from '@heroicons/react/24/outline';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeAnalytics } from '@/lib/fake-data';
@@ -246,7 +255,7 @@ export default function AnalyticsPage() {
           {preset === 'this-month' && (
             <>
               <Button variant="outline" size="icon" onClick={handlePrevMonth}>
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeftIcon className="h-4 w-4" />
               </Button>
               <div className="text-sm font-medium min-w-[140px] text-center">
                 {displayDateRange}
@@ -257,7 +266,7 @@ export default function AnalyticsPage() {
                 onClick={handleNextMonth}
                 disabled={currentMonth >= startOfMonth(new Date())}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRightIcon className="h-4 w-4" />
               </Button>
             </>
           )}
@@ -351,25 +360,25 @@ export default function AnalyticsPage() {
         <StatCard
           title="Total Spent"
           value={data.periodAnalytics.totalSpent}
-          icon={DollarSign}
+          icon={CurrencyDollarIcon}
           neutral
         />
         <StatCard
           title="Avg Daily Spend"
           value={data.periodAnalytics.avgDailySpend}
-          icon={TrendingDown}
+          icon={ArrowTrendingDownIcon}
           neutral
         />
         <StatCard
           title="Transactions"
           value={data.stats.totalTransactions}
-          icon={Receipt}
+          icon={ReceiptPercentIcon}
           format="number"
         />
         <StatCard
           title="Savings Rate"
           value={data.savingsRate.current}
-          icon={PiggyBank}
+          icon={BanknotesIcon}
           format="percent"
         />
       </div>
@@ -545,7 +554,7 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Store className="h-5 w-5 text-muted-foreground" />
+            <BuildingStorefrontIcon className="h-5 w-5 text-muted-foreground" />
             <CardTitle>Most Visited Merchants</CardTitle>
           </div>
         </CardHeader>

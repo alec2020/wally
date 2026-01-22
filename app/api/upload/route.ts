@@ -7,6 +7,8 @@ import {
   isDuplicateTransaction,
   createStatementUpload,
   upsertPreferenceForMerchant,
+  getTransactions,
+  processTransactionForLiabilityPayments,
 } from '@/lib/db';
 import { categorizeTransactions, categorizeWithRules } from '@/lib/categorize';
 import { processPDF } from '@/lib/parsers/pdf';
@@ -120,12 +122,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Process newly imported transactions for liability payments
+    // Get the most recently imported transactions for this account
+    const recentTransactions = getTransactions({
+      accountId: accountId ?? undefined,
+      limit: inserted,
+    });
+
+    let paymentsCreated = 0;
+    for (const tx of recentTransactions) {
+      const result = processTransactionForLiabilityPayments(tx.id);
+      if (result.matched) {
+        paymentsCreated += result.payments.length;
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Imported ${inserted} transactions`,
+      message: `Imported ${inserted} transactions${paymentsCreated > 0 ? `, ${paymentsCreated} liability payment(s) detected` : ''}`,
       imported: inserted,
       accountId,
       institution,
+      paymentsDetected: paymentsCreated,
     });
   } catch (error) {
     console.error('Upload error:', error);

@@ -43,8 +43,24 @@ import {
   AssetType,
   LiabilityType,
 } from '@/lib/utils';
-import { Save, Trash2, Plus, Pencil, Car, Watch, Home, Star, Box } from 'lucide-react';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  ArrowDownTrayIcon,
+  TrashIcon,
+  PlusIcon,
+  PencilIcon,
+  TruckIcon,
+  ClockIcon,
+  HomeIcon,
+  StarIcon,
+  CubeIcon,
+  LinkIcon,
+  CheckIcon,
+  XMarkIcon,
+  BellIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+} from '@heroicons/react/24/outline';
+import { Badge } from '@/components/ui/badge';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeSnapshots, generateFakeAccounts, generateFakeAssets, generateFakeLiabilities } from '@/lib/fake-data';
 
@@ -131,12 +147,43 @@ interface Liability {
   notes: string | null;
 }
 
+interface PaymentRule {
+  id: number;
+  liability_id: number;
+  match_merchant: string | null;
+  match_description: string | null;
+  match_account_id: number | null;
+  rule_description: string;
+  auto_apply: boolean;
+  is_active: boolean;
+  liability_name?: string;
+  account_name?: string;
+}
+
+interface LiabilityPayment {
+  id: number;
+  liability_id: number;
+  transaction_id: number;
+  rule_id: number | null;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  status: 'pending' | 'applied' | 'reversed' | 'skipped';
+  applied_at: string | null;
+  created_at: string;
+  liability_name?: string;
+  transaction_date?: string;
+  transaction_description?: string;
+  transaction_merchant?: string;
+  rule_description?: string;
+}
+
 const assetTypeIcons: Record<AssetType, React.ReactNode> = {
-  vehicle: <Car className="h-5 w-5" />,
-  jewelry: <Watch className="h-5 w-5" />,
-  real_estate: <Home className="h-5 w-5" />,
-  collectible: <Star className="h-5 w-5" />,
-  other: <Box className="h-5 w-5" />,
+  vehicle: <TruckIcon className="h-5 w-5" />,
+  jewelry: <ClockIcon className="h-5 w-5" />,
+  real_estate: <HomeIcon className="h-5 w-5" />,
+  collectible: <StarIcon className="h-5 w-5" />,
+  other: <CubeIcon className="h-5 w-5" />,
 };
 
 export default function NetWorthPage() {
@@ -179,6 +226,29 @@ export default function NetWorthPage() {
     notes: '',
   });
 
+  // Payment rules state
+  const [paymentRules, setPaymentRules] = useState<PaymentRule[]>([]);
+  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
+  const [rulesDialogLiabilityId, setRulesDialogLiabilityId] = useState<number | null>(null);
+  const [editingRule, setEditingRule] = useState<PaymentRule | null>(null);
+  const [showRuleForm, setShowRuleForm] = useState(false);
+  const [ruleForm, setRuleForm] = useState({
+    liability_id: '',
+    match_merchant: '',
+    match_description: '',
+    match_account_id: '',
+    rule_description: '',
+    auto_apply: true,
+    is_active: true,
+  });
+
+  // Liability payments state
+  const [liabilityPayments, setLiabilityPayments] = useState<LiabilityPayment[]>([]);
+  const [pendingPaymentCount, setPendingPaymentCount] = useState(0);
+  const [pendingPaymentsDialogOpen, setPendingPaymentsDialogOpen] = useState(false);
+  const [paymentHistoryDialogOpen, setPaymentHistoryDialogOpen] = useState(false);
+  const [selectedLiabilityForHistory, setSelectedLiabilityForHistory] = useState<number | null>(null);
+
   // Calculate net worth (must be before any early returns for hooks)
   const accountsTotal = snapshotData?.currentNetWorth ?? 0;
   const liabilitiesForNetWorth = liabilities
@@ -220,16 +290,20 @@ export default function NetWorthPage() {
     }
 
     try {
-      const [accountsRes, snapshotsRes, assetsRes, liabilitiesRes] = await Promise.all([
+      const [accountsRes, snapshotsRes, assetsRes, liabilitiesRes, rulesRes, paymentsRes] = await Promise.all([
         fetch('/api/accounts'),
         fetch('/api/snapshots'),
         fetch('/api/assets'),
         fetch('/api/liabilities'),
+        fetch('/api/liability-rules'),
+        fetch('/api/liability-payments'),
       ]);
       const accountsData = await accountsRes.json();
       const snapshotsData = await snapshotsRes.json();
       const assetsData = await assetsRes.json();
       const liabilitiesData = await liabilitiesRes.json();
+      const rulesData = await rulesRes.json();
+      const paymentsData = await paymentsRes.json();
 
       // Only show bank and brokerage accounts for net worth (not credit cards)
       const netWorthAccounts = (accountsData.accounts || []).filter(
@@ -241,6 +315,9 @@ export default function NetWorthPage() {
       setLiabilities(liabilitiesData.liabilities || []);
       setTotalAssetsValue(assetsData.totalValue || 0);
       setTotalLiabilitiesBalance(liabilitiesData.totalBalance || 0);
+      setPaymentRules(rulesData.rules || []);
+      setLiabilityPayments(paymentsData.payments || []);
+      setPendingPaymentCount(paymentsData.pendingCount || 0);
 
       // Set default month to current month
       if (!selectedMonth) {
@@ -457,6 +534,142 @@ export default function NetWorthPage() {
     }
   };
 
+  // Payment Rule handlers
+  const openRulesDialog = (liabilityId: number) => {
+    setRulesDialogLiabilityId(liabilityId);
+    setEditingRule(null);
+    setShowRuleForm(false);
+    setRuleForm({
+      liability_id: liabilityId.toString(),
+      match_merchant: '',
+      match_description: '',
+      match_account_id: '',
+      rule_description: '',
+      auto_apply: true,
+      is_active: true,
+    });
+    setRulesDialogOpen(true);
+  };
+
+  const startEditRule = (rule: PaymentRule) => {
+    setEditingRule(rule);
+    setShowRuleForm(true);
+    setRuleForm({
+      liability_id: rule.liability_id.toString(),
+      match_merchant: rule.match_merchant || '',
+      match_description: rule.match_description || '',
+      match_account_id: rule.match_account_id?.toString() || '',
+      rule_description: rule.rule_description,
+      auto_apply: rule.auto_apply,
+      is_active: rule.is_active,
+    });
+  };
+
+  const startAddRule = () => {
+    setEditingRule(null);
+    setShowRuleForm(true);
+    setRuleForm({
+      liability_id: rulesDialogLiabilityId?.toString() || '',
+      match_merchant: '',
+      match_description: '',
+      match_account_id: '',
+      rule_description: '',
+      auto_apply: true,
+      is_active: true,
+    });
+  };
+
+  const cancelRuleForm = () => {
+    setEditingRule(null);
+    setShowRuleForm(false);
+  };
+
+  const handleSaveRule = async () => {
+    const payload = {
+      liability_id: parseInt(ruleForm.liability_id),
+      match_merchant: ruleForm.match_merchant || null,
+      match_description: ruleForm.match_description || null,
+      match_account_id: ruleForm.match_account_id ? parseInt(ruleForm.match_account_id) : null,
+      rule_description: ruleForm.rule_description,
+      auto_apply: ruleForm.auto_apply,
+      is_active: ruleForm.is_active,
+    };
+
+    try {
+      if (editingRule) {
+        await fetch('/api/liability-rules', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingRule.id, ...payload }),
+        });
+      } else {
+        await fetch('/api/liability-rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+      // Reset form but stay in dialog
+      setEditingRule(null);
+      setShowRuleForm(false);
+      setRuleForm({
+        liability_id: rulesDialogLiabilityId?.toString() || '',
+        match_merchant: '',
+        match_description: '',
+        match_account_id: '',
+        rule_description: '',
+        auto_apply: true,
+        is_active: true,
+      });
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to save rule:', error);
+    }
+  };
+
+  const handleDeleteRule = async (id: number) => {
+    try {
+      await fetch(`/api/liability-rules?id=${id}`, { method: 'DELETE' });
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to delete rule:', error);
+    }
+  };
+
+  // Payment handlers
+  const handlePaymentAction = async (paymentId: number, action: 'apply' | 'skip' | 'reverse') => {
+    try {
+      await fetch('/api/liability-payments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: paymentId, action }),
+      });
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to update payment:', error);
+    }
+  };
+
+  const openPaymentHistory = (liabilityId: number) => {
+    setSelectedLiabilityForHistory(liabilityId);
+    setPaymentHistoryDialogOpen(true);
+  };
+
+  // Get pending payments for a specific liability
+  const getPendingPaymentsForLiability = (liabilityId: number) => {
+    return liabilityPayments.filter(p => p.liability_id === liabilityId && p.status === 'pending');
+  };
+
+  // Get all payments for a specific liability
+  const getPaymentsForLiability = (liabilityId: number) => {
+    return liabilityPayments.filter(p => p.liability_id === liabilityId);
+  };
+
+  // Get rules for a specific liability
+  const getRulesForLiability = (liabilityId: number) => {
+    return paymentRules.filter(r => r.liability_id === liabilityId);
+  };
+
   if (isLoading) {
     return (
       <div className="p-8">
@@ -521,14 +734,14 @@ export default function NetWorthPage() {
           title="Total Assets"
           subtitle={`${assets.length} tracked asset${assets.length !== 1 ? 's' : ''}`}
           value={accountsTotal + totalAssetsValue}
-          icon={TrendingUp}
+          icon={ArrowTrendingUpIcon}
           neutral
         />
         <StatCard
           title="Total Liabilities"
           subtitle={`${liabilities.length} active debt${liabilities.length !== 1 ? 's' : ''}`}
           value={totalLiabilitiesBalance}
-          icon={TrendingDown}
+          icon={ArrowTrendingDownIcon}
           variant="negative"
         />
       </div>
@@ -547,7 +760,7 @@ export default function NetWorthPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Assets</CardTitle>
           <Button size="sm" onClick={() => openAssetDialog()}>
-            <Plus className="h-4 w-4 mr-1" />
+            <PlusIcon className="h-4 w-4 mr-1" />
             Add Asset
           </Button>
         </CardHeader>
@@ -600,13 +813,13 @@ export default function NetWorthPage() {
                         onClick={() => openAssetDialog(asset)}
                         className="p-1 hover:bg-muted rounded transition-colors"
                       >
-                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        <PencilIcon className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
                       <button
                         onClick={() => handleDeleteAsset(asset.id)}
                         className="p-1 hover:bg-muted rounded transition-colors"
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                        <TrashIcon className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                       </button>
                     </div>
                   </div>
@@ -622,7 +835,7 @@ export default function NetWorthPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Debts</CardTitle>
           <Button size="sm" onClick={() => openLiabilityDialog()}>
-            <Plus className="h-4 w-4 mr-1" />
+            <PlusIcon className="h-4 w-4 mr-1" />
             Add Debt
           </Button>
         </CardHeader>
@@ -640,33 +853,59 @@ export default function NetWorthPage() {
                   liability.monthly_payment,
                   liability.interest_rate
                 );
+                const pendingPayments = getPendingPaymentsForLiability(liability.id);
+                const rules = getRulesForLiability(liability.id);
                 return (
                   <div
                     key={liability.id}
                     className="p-4 rounded-lg border bg-card"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <p className="font-medium text-foreground">{liability.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatCurrency(liability.current_balance)} remaining of {formatCurrency(liability.original_amount)}
-                        </p>
+                        {pendingPayments.length > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="cursor-pointer"
+                            onClick={() => setPendingPaymentsDialogOpen(true)}
+                          >
+                            <BellIcon className="h-3 w-3 mr-1" />
+                            {pendingPayments.length} pending
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openRulesDialog(liability.id)}
+                          className="p-1 hover:bg-muted rounded transition-colors"
+                          title="Payment rules"
+                        >
+                          <LinkIcon className={`h-3.5 w-3.5 ${rules.length > 0 ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </button>
+                        <button
+                          onClick={() => openPaymentHistory(liability.id)}
+                          className="p-1 hover:bg-muted rounded transition-colors"
+                          title="Payment history"
+                        >
+                          <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
                         <button
                           onClick={() => openLiabilityDialog(liability)}
                           className="p-1 hover:bg-muted rounded transition-colors"
                         >
-                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          <PencilIcon className="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                         <button
                           onClick={() => handleDeleteLiability(liability.id)}
                           className="p-1 hover:bg-muted rounded transition-colors"
                         >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                          <TrashIcon className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                         </button>
                       </div>
                     </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {formatCurrency(liability.current_balance)} remaining of {formatCurrency(liability.original_amount)}
+                    </p>
                     <div className="mb-2">
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-muted-foreground">Payoff progress</span>
@@ -759,7 +998,7 @@ export default function NetWorthPage() {
               </div>
             ))}
             <Button onClick={handleSaveBalances} disabled={isSaving}>
-              <Save className="mr-2 h-4 w-4" />
+              <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
               {isSaving ? 'Saving...' : 'Save'}
             </Button>
           </div>
@@ -795,7 +1034,7 @@ export default function NetWorthPage() {
                         onClick={() => handleDeleteSnapshot(snapshot.id)}
                         className="p-1 hover:bg-muted rounded transition-colors"
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                        <TrashIcon className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                       </button>
                     </TableCell>
                   </TableRow>
@@ -1010,6 +1249,310 @@ export default function NetWorthPage() {
               disabled={!liabilityForm.name || !liabilityForm.original_amount || !liabilityForm.current_balance}
             >
               {editingLiability ? 'Save Changes' : 'Add Debt'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Rules Dialog */}
+      <Dialog open={rulesDialogOpen} onOpenChange={(open) => {
+        setRulesDialogOpen(open);
+        if (!open) {
+          setShowRuleForm(false);
+          setEditingRule(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Payment Rules
+              {rulesDialogLiabilityId && (
+                <span className="font-normal text-muted-foreground">
+                  {' '}- {liabilities.find(l => l.id === rulesDialogLiabilityId)?.name}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {/* Existing rules list */}
+            {rulesDialogLiabilityId && getRulesForLiability(rulesDialogLiabilityId).length > 0 && !showRuleForm && (
+              <div className="space-y-2 mb-4">
+                {getRulesForLiability(rulesDialogLiabilityId).map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{rule.rule_description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {rule.match_merchant && `Merchant: "${rule.match_merchant}"`}
+                        {rule.match_merchant && rule.match_description && ' • '}
+                        {rule.match_description && `Desc: "${rule.match_description}"`}
+                        {!rule.is_active && ' • Disabled'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3">
+                      <button
+                        onClick={() => startEditRule(rule)}
+                        className="p-1.5 hover:bg-muted rounded transition-colors"
+                      >
+                        <PencilIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRule(rule.id)}
+                        className="p-1.5 hover:bg-muted rounded transition-colors"
+                      >
+                        <TrashIcon className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {rulesDialogLiabilityId && getRulesForLiability(rulesDialogLiabilityId).length === 0 && !showRuleForm && (
+              <p className="text-muted-foreground text-center py-4 text-sm">
+                No payment rules yet. Add a rule to automatically link transactions to this debt.
+              </p>
+            )}
+
+            {/* Add rule button */}
+            {!showRuleForm && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={startAddRule}
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Add Rule
+              </Button>
+            )}
+
+            {/* Rule form */}
+            {showRuleForm && (
+              <div className="space-y-4 border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-sm">{editingRule ? 'Edit Rule' : 'New Rule'}</p>
+                  <button
+                    onClick={cancelRuleForm}
+                    className="p-1 hover:bg-muted rounded transition-colors"
+                  >
+                    <XMarkIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+                <div className="grid gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="rule-merchant" className="text-sm">Match Merchant</Label>
+                    <Input
+                      id="rule-merchant"
+                      placeholder="e.g., Wells Fargo"
+                      value={ruleForm.match_merchant}
+                      onChange={(e) => setRuleForm((f) => ({ ...f, match_merchant: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="rule-description" className="text-sm">Match Description</Label>
+                    <Input
+                      id="rule-description"
+                      placeholder="e.g., AUTO LOAN PAYMENT"
+                      value={ruleForm.match_description}
+                      onChange={(e) => setRuleForm((f) => ({ ...f, match_description: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      At least one match field is required
+                    </p>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="rule-note" className="text-sm">Description</Label>
+                    <Input
+                      id="rule-note"
+                      placeholder="e.g., Wells Fargo payments are for my car loan"
+                      value={ruleForm.rule_description}
+                      onChange={(e) => setRuleForm((f) => ({ ...f, rule_description: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rule-auto-apply"
+                        checked={ruleForm.auto_apply}
+                        onChange={(e) => setRuleForm((f) => ({ ...f, auto_apply: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <Label htmlFor="rule-auto-apply" className="text-sm font-normal cursor-pointer">
+                        Auto-apply
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rule-active"
+                        checked={ruleForm.is_active}
+                        onChange={(e) => setRuleForm((f) => ({ ...f, is_active: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <Label htmlFor="rule-active" className="text-sm font-normal cursor-pointer">
+                        Active
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={cancelRuleForm}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveRule}
+                    disabled={!ruleForm.rule_description || (!ruleForm.match_merchant && !ruleForm.match_description)}
+                  >
+                    {editingRule ? 'Save' : 'Add'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRulesDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Payments Dialog */}
+      <Dialog open={pendingPaymentsDialogOpen} onOpenChange={setPendingPaymentsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Pending Payments</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {liabilityPayments.filter(p => p.status === 'pending').length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No pending payments</p>
+            ) : (
+              <div className="space-y-3">
+                {liabilityPayments
+                  .filter(p => p.status === 'pending')
+                  .map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{payment.transaction_description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {payment.transaction_date} &bull; {payment.liability_name}
+                        </p>
+                        <p className="text-sm mt-1">
+                          <span className="font-medium">{formatCurrency(payment.amount)}</span>
+                          <span className="text-muted-foreground">
+                            {' '}will reduce balance from {formatCurrency(payment.balance_before)} to {formatCurrency(payment.balance_after)}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handlePaymentAction(payment.id, 'skip')}
+                        >
+                          <XMarkIcon className="h-4 w-4 mr-1" />
+                          Skip
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePaymentAction(payment.id, 'apply')}
+                        >
+                          <CheckIcon className="h-4 w-4 mr-1" />
+                          Apply
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingPaymentsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment History Dialog */}
+      <Dialog open={paymentHistoryDialogOpen} onOpenChange={setPaymentHistoryDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Payment History
+              {selectedLiabilityForHistory && (
+                <span className="font-normal text-muted-foreground">
+                  {' '}- {liabilities.find(l => l.id === selectedLiabilityForHistory)?.name}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 max-h-[400px] overflow-y-auto">
+            {selectedLiabilityForHistory && getPaymentsForLiability(selectedLiabilityForHistory).length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No payment history</p>
+            ) : (
+              <div className="space-y-1">
+                <div className="grid grid-cols-4 text-sm font-medium text-muted-foreground pb-2 border-b">
+                  <div>Date</div>
+                  <div>Description</div>
+                  <div>Amount</div>
+                  <div>Status</div>
+                </div>
+                {selectedLiabilityForHistory &&
+                  getPaymentsForLiability(selectedLiabilityForHistory).map((payment) => (
+                    <div key={payment.id} className="grid grid-cols-4 py-2 border-b border-border/50 text-sm">
+                      <div>{payment.transaction_date}</div>
+                      <div className="truncate">{payment.transaction_merchant || payment.transaction_description}</div>
+                      <div className="font-medium">{formatCurrency(payment.amount)}</div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            payment.status === 'applied'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              : payment.status === 'pending'
+                              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                              : payment.status === 'reversed'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          }`}
+                        >
+                          {payment.status}
+                        </span>
+                        {payment.status === 'applied' && (
+                          <button
+                            onClick={() => handlePaymentAction(payment.id, 'reverse')}
+                            className="p-1 hover:bg-muted rounded"
+                            title="Reverse payment"
+                          >
+                            <XMarkIcon className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        )}
+                        {payment.status === 'pending' && (
+                          <button
+                            onClick={() => handlePaymentAction(payment.id, 'apply')}
+                            className="p-1 hover:bg-muted rounded"
+                            title="Apply payment"
+                          >
+                            <CheckIcon className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentHistoryDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
