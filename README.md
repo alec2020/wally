@@ -1,4 +1,6 @@
-# Finance Tracker
+# Wally
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A personal finance management application built with Next.js that helps you track transactions, monitor spending, and manage your net worth.
 
@@ -51,8 +53,8 @@ A personal finance management application built with Next.js that helps you trac
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/alec2020/finance-tracker.git
-   cd finance-tracker
+   git clone https://github.com/alec2020/wally.git
+   cd wally
    ```
 
 2. Install dependencies:
