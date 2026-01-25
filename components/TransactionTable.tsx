@@ -54,7 +54,10 @@ import {
   FunnelIcon,
   XMarkIcon,
   DocumentIcon,
+  TrashIcon,
+  CheckIcon,
 } from '@heroicons/react/24/outline';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, parseISO } from 'date-fns';
 
 // Separate component for note editing to prevent re-renders of the main table
@@ -146,6 +149,8 @@ interface TransactionTableProps {
   accounts: Account[];
   onUpdate: (id: number, updates: Partial<Transaction>) => void;
   onDelete: (id: number) => void;
+  onBulkUpdate?: (ids: number[], updates: Partial<Transaction>) => Promise<void>;
+  onBulkDelete?: (ids: number[]) => Promise<void>;
   onRecategorize: () => void;
   isLoading?: boolean;
   initialCategoryFilters?: string[];
@@ -176,6 +181,8 @@ export function TransactionTable({
   accounts,
   onUpdate,
   onDelete,
+  onBulkUpdate,
+  onBulkDelete,
   onRecategorize,
   isLoading,
   initialCategoryFilters,
@@ -197,6 +204,10 @@ export function TransactionTable({
 
   // Note editing state
   const [editingTransaction, setEditingTransaction] = useState<{ id: number; notes: string | null } | null>(null);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Calculate date range based on preset
   const dateRange = useMemo(() => {
@@ -360,6 +371,83 @@ export function TransactionTable({
       totalIncome,
     };
   }, [filteredTransactions, activeFilterCount]);
+
+  // Selection helpers
+  const filteredIds = useMemo(() => new Set(filteredTransactions.map(tx => tx.id)), [filteredTransactions]);
+  const selectedCount = selectedIds.size;
+  const allFilteredSelected = filteredTransactions.length > 0 &&
+    filteredTransactions.every(tx => selectedIds.has(tx.id));
+  const someFilteredSelected = filteredTransactions.some(tx => selectedIds.has(tx.id));
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      // Deselect all filtered
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredTransactions.forEach(tx => next.delete(tx.id));
+        return next;
+      });
+    } else {
+      // Select all filtered
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredTransactions.forEach(tx => next.add(tx.id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkCategoryChange = async (category: string | null) => {
+    if (!onBulkUpdate || selectedIds.size === 0) return;
+    await onBulkUpdate(Array.from(selectedIds), { category });
+    clearSelection();
+  };
+
+  const handleBulkTransferToggle = async (isTransfer: boolean) => {
+    if (!onBulkUpdate || selectedIds.size === 0) return;
+    await onBulkUpdate(Array.from(selectedIds), { is_transfer: isTransfer });
+    clearSelection();
+  };
+
+  const handleBulkAccountChange = async (accountId: number) => {
+    if (!onBulkUpdate || selectedIds.size === 0) return;
+    await onBulkUpdate(Array.from(selectedIds), { account_id: accountId } as Partial<Transaction>);
+    clearSelection();
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (!onBulkDelete || selectedIds.size === 0) return;
+    await onBulkDelete(Array.from(selectedIds));
+    clearSelection();
+    setShowDeleteConfirm(false);
+  };
+
+  // Keyboard shortcut for escape to clear selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedIds.size > 0) {
+        clearSelection();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds.size]);
 
   // Get display label for date preset
   const getDatePresetLabel = () => {
@@ -694,6 +782,19 @@ export function TransactionTable({
         <Table>
           <TableHeader>
             <TableRow>
+              {onBulkUpdate && onBulkDelete && (
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allFilteredSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                    className={cn(
+                      someFilteredSelected && !allFilteredSelected && 'data-[state=checked]:bg-muted'
+                    )}
+                    {...(someFilteredSelected && !allFilteredSelected ? { 'data-state': 'indeterminate' } : {})}
+                  />
+                </TableHead>
+              )}
               <TableHead
                 className="cursor-pointer hover:bg-muted"
                 onClick={() => toggleSort('date')}
@@ -721,13 +822,22 @@ export function TransactionTable({
           <TableBody>
             {paginatedTransactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={onBulkUpdate && onBulkDelete ? 7 : 6} className="text-center py-8 text-muted-foreground">
                   No transactions found
                 </TableCell>
               </TableRow>
             ) : (
               paginatedTransactions.map((tx) => (
-                <TableRow key={tx.id} className={tx.is_transfer ? 'opacity-50' : ''}>
+                <TableRow key={tx.id} className={cn(tx.is_transfer && 'opacity-50', selectedIds.has(tx.id) && 'bg-muted/50')}>
+                  {onBulkUpdate && onBulkDelete && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(tx.id)}
+                        onCheckedChange={() => toggleSelect(tx.id)}
+                        aria-label={`Select transaction ${tx.id}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="whitespace-nowrap">
                     {formatDate(tx.date)}
                   </TableCell>
@@ -915,6 +1025,96 @@ export function TransactionTable({
         </Table>
       </div>
 
+      {/* Bulk Action Toolbar */}
+      {selectedCount > 0 && onBulkUpdate && onBulkDelete && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-xl shadow-black/25">
+            <CheckIcon className="h-4 w-4" />
+            <span className="font-medium">{selectedCount} selected</span>
+            <div className="w-px h-6 bg-white/20 mx-1" />
+
+            {/* Category Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-white hover:text-white hover:bg-white/20">
+                  Category
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center">
+                <DropdownMenuItem onClick={() => handleBulkCategoryChange(null)}>
+                  Uncategorized
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {CATEGORIES.map((cat) => (
+                  <DropdownMenuItem key={cat} onClick={() => handleBulkCategoryChange(cat)}>
+                    <span
+                      className="w-2 h-2 rounded-full mr-2"
+                      style={{ backgroundColor: getCategoryColor(cat) }}
+                    />
+                    {cat}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Transfer Toggle */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-white hover:text-white hover:bg-white/20">
+                  Transfer
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center">
+                <DropdownMenuItem onClick={() => handleBulkTransferToggle(true)}>
+                  Mark as Transfer
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleBulkTransferToggle(false)}>
+                  Unmark as Transfer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Account Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-white hover:text-white hover:bg-white/20">
+                  Account
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center">
+                {accounts.map((account) => (
+                  <DropdownMenuItem key={account.id} onClick={() => handleBulkAccountChange(account.id)}>
+                    {account.name.replace(' Account', '')}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Delete Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-200 hover:text-red-100 hover:bg-red-500/30"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <TrashIcon className="h-4 w-4" />
+            </Button>
+
+            <div className="w-px h-6 bg-white/20 mx-1" />
+
+            {/* Clear Selection */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:text-white hover:bg-white/20"
+              onClick={clearSelection}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, filteredTransactions.length)} of {filteredTransactions.length} transactions
@@ -978,6 +1178,26 @@ export function TransactionTable({
         onSave={(id, notes) => onUpdate(id, { notes } as Partial<Transaction>)}
         onClose={() => setEditingTransaction(null)}
       />
+
+      {/* Bulk delete confirmation dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedCount} transactions?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This action cannot be undone. This will permanently delete the selected transactions.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleBulkDeleteConfirm}>
+              Delete {selectedCount} transactions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

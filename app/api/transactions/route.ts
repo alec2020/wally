@@ -50,8 +50,58 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...updates } = body;
+    const { id, ids, ...updates } = body;
 
+    // Bulk update: { ids: number[], ...updates }
+    if (ids && Array.isArray(ids)) {
+      const updatedTransactions = [];
+      for (const txId of ids) {
+        const existing = getTransactionById(txId);
+        if (!existing) continue;
+
+        // Check if this transaction has an associated liability payment
+        const existingPayment = getLiabilityPaymentByTransactionId(txId);
+
+        // If amount is being changed and there's an applied payment, reverse it
+        if (updates.amount !== undefined && updates.amount !== existing.amount && existingPayment) {
+          if (existingPayment.status === 'applied') {
+            reversePaymentFromLiability(existingPayment.id);
+          }
+        }
+
+        updateTransaction(txId, updates);
+
+        // Learn from category corrections for bulk updates too
+        if (updates.category && updates.category !== existing.category) {
+          const merchantName = updates.merchant || existing.merchant || existing.description;
+          const category = updates.category;
+          const subcategory = updates.subcategory ?? existing.subcategory;
+          const isTransfer = updates.is_transfer ?? existing.is_transfer ?? false;
+
+          let instruction = `"${merchantName}" should be categorized as ${category}`;
+          if (subcategory) {
+            instruction += ` / ${subcategory}`;
+          }
+          if (isTransfer) {
+            instruction += ' (mark as transfer)';
+          }
+
+          upsertPreferenceForMerchant(merchantName, instruction, 'learned');
+        }
+
+        // If amount was changed and there was a payment, re-process
+        if (updates.amount !== undefined && updates.amount !== existing.amount && existingPayment) {
+          processTransactionForLiabilityPayments(txId);
+        }
+
+        const updated = getTransactionById(txId);
+        if (updated) updatedTransactions.push(updated);
+      }
+
+      return NextResponse.json({ transactions: updatedTransactions, count: updatedTransactions.length });
+    }
+
+    // Single update: { id, ...updates }
     if (!id) {
       return NextResponse.json(
         { error: 'Transaction ID is required' },
@@ -122,7 +172,31 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const idsParam = searchParams.get('ids');
 
+    // Bulk delete: ?ids=1,2,3
+    if (idsParam) {
+      const ids = idsParam.split(',').map(Number).filter(n => !isNaN(n));
+      let deletedCount = 0;
+
+      for (const txId of ids) {
+        const existing = getTransactionById(txId);
+        if (!existing) continue;
+
+        // Check if this transaction has an associated liability payment
+        const existingPayment = getLiabilityPaymentByTransactionId(txId);
+        if (existingPayment && existingPayment.status === 'applied') {
+          reversePaymentFromLiability(existingPayment.id);
+        }
+
+        deleteTransaction(txId);
+        deletedCount++;
+      }
+
+      return NextResponse.json({ success: true, count: deletedCount });
+    }
+
+    // Single delete: ?id=X
     if (!id) {
       return NextResponse.json(
         { error: 'Transaction ID is required' },

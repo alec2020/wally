@@ -143,6 +143,43 @@ export default function TransactionsPage() {
     }
   };
 
+  const handleBulkUpdate = async (ids: number[], updates: Partial<Transaction>) => {
+    try {
+      const response = await fetch('/api/transactions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, ...updates }),
+      });
+
+      if (response.ok) {
+        // If account_id changed, refetch to get new account_names
+        if ('account_id' in updates) {
+          await fetchTransactions();
+        } else {
+          setTransactions((prev) =>
+            prev.map((tx) => (ids.includes(tx.id) ? { ...tx, ...updates } : tx))
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to bulk update transactions:', error);
+    }
+  };
+
+  const handleBulkDelete = async (ids: number[]) => {
+    try {
+      const response = await fetch(`/api/transactions?ids=${ids.join(',')}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setTransactions((prev) => prev.filter((tx) => !ids.includes(tx.id)));
+      }
+    } catch (error) {
+      console.error('Failed to bulk delete transactions:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-8">
@@ -168,6 +205,8 @@ export default function TransactionsPage() {
         accounts={accounts}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
+        onBulkUpdate={handleBulkUpdate}
+        onBulkDelete={handleBulkDelete}
         onRecategorize={handleRecategorize}
         isLoading={isCategorizing}
         initialCategoryFilters={initialFilters.categoryFilters}
