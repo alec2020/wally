@@ -1,6 +1,6 @@
 {
   "name": "wally",
-  "version": "0.1.0",
+  "version": "1.0.6",
   "private": false,
   "description": "A personal finance management application for tracking transactions, spending, and net worth",
   "repository": {

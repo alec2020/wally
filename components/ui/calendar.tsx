@@ -5,7 +5,7 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-} from "lucide-react"
+} from "@heroicons/react/24/outline"
 import {
   DayPicker,
   getDefaultClassNames,

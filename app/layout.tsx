@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/Sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ScreenshotModeProvider } from "@/lib/screenshot-mode";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { WelcomeModal } from "@/components/WelcomeModal";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -27,7 +28,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Finance Tracker",
+  title: "Wally",
   description: "Personal finance tracking and analysis",
 };
 
@@ -52,6 +53,7 @@ export default async function RootLayout({
                 {children}
               </SidebarInset>
             </SidebarProvider>
+            <WelcomeModal />
           </ScreenshotModeProvider>
         </ThemeProvider>
       </body>

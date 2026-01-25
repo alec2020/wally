@@ -42,7 +42,12 @@ yarn-error.log*
 /build/
 electron-builder.yml
 scripts/clean-standalone.js
+scripts/verify-electron-build.js
 ELECTRON.local.md
+
+# Dev/debug scripts (not needed in public repo)
+scripts/test-pdf-parsing.ts
+lib/icons-backup-lucide.ts
 
 # vercel
 .vercel

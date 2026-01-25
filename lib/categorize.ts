@@ -69,7 +69,7 @@ function createOpenRouterClient(): OpenAI | null {
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: {
         'HTTP-Referer': 'https://finance-tracker.local',
-        'X-Title': 'Finance Tracker',
+        'X-Title': 'Wally',
       },
     });
   }

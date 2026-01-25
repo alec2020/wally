@@ -42,13 +42,13 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="p-2 pt-4">
+      <SidebarHeader className="p-2 pt-10">
         <Link href="/" className="flex h-8 items-center">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
             <WalletIcon className="h-4 w-4 text-primary-foreground" />
           </div>
           <span className="ml-2 overflow-hidden whitespace-nowrap text-lg font-bold text-sidebar-foreground transition-all duration-200 ease-linear group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:opacity-0">
-            FinanceTracker
+            Wally
           </span>
         </Link>
       </SidebarHeader>

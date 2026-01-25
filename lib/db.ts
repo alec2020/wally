@@ -1,9 +1,19 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { SCHEMA_SQL } from './schema';
 
-const DB_PATH = path.join(process.cwd(), 'finance.db');
-const SCHEMA_PATH = path.join(process.cwd(), 'schema.sql');
+// Get the appropriate data directory for the platform
+function getDataPath(): string {
+  // Check if Electron set the data path via environment variable
+  if (process.env.FINANCE_TRACKER_DATA_PATH) {
+    return process.env.FINANCE_TRACKER_DATA_PATH;
+  }
+  // Development or non-Electron: use current working directory
+  return process.cwd();
+}
+
+const DB_PATH = path.join(getDataPath(), 'finance.db');
 
 let db: Database.Database | null = null;
 
@@ -15,8 +25,7 @@ export function getDb(): Database.Database {
     // Initialize schema if tables don't exist
     const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'").get();
     if (!tableCheck) {
-      const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
-      db.exec(schema);
+      db.exec(SCHEMA_SQL);
     }
 
     // Migration: Add subscription_frequency column if it doesn't exist

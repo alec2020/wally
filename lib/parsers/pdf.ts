@@ -57,7 +57,7 @@ function createOpenRouterClient(): OpenAI | null {
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: {
         'HTTP-Referer': 'https://finance-tracker.local',
-        'X-Title': 'Finance Tracker',
+        'X-Title': 'Wally',
       },
     });
   }
@@ -81,6 +81,58 @@ function getModel(): string {
 export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
   const { text } = await extractText(buffer, { mergePages: true });
   return text;
+}
+
+/**
+ * Attempt to repair truncated JSON from AI responses that hit token limits.
+ * Tries to close any unclosed arrays and objects to make the JSON parseable.
+ */
+function repairTruncatedJSON(jsonStr: string): string {
+  // Count open brackets/braces
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (const char of jsonStr) {
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    if (char === '\\' && inString) {
+      escapeNext = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (char === '{') openBraces++;
+    if (char === '}') openBraces--;
+    if (char === '[') openBrackets++;
+    if (char === ']') openBrackets--;
+  }
+
+  // If we're in the middle of a string, close it
+  if (inString) {
+    jsonStr += '"';
+  }
+
+  // Remove any trailing incomplete object/value (after last complete comma)
+  // Find the last complete transaction by looking for },{ or }] pattern
+  const lastCompletePattern = /,\s*\{[^{}]*$/;
+  if (lastCompletePattern.test(jsonStr)) {
+    // Remove incomplete trailing object
+    jsonStr = jsonStr.replace(lastCompletePattern, '');
+  }
+
+  // Close unclosed brackets and braces
+  jsonStr += ']'.repeat(Math.max(0, openBrackets));
+  jsonStr += '}'.repeat(Math.max(0, openBraces));
+
+  return jsonStr;
 }
 
 /**
@@ -160,24 +212,8 @@ IMPORTANT AMOUNT RULES:
 - For bank accounts: withdrawals/debits are NEGATIVE, deposits/credits are POSITIVE
 - Interest charges and fees are NEGATIVE
 
-Return ONLY valid JSON in this exact format:
-{
-  "institution": "Bank Name",
-  "accountType": "credit_card",
-  "statementPeriodStart": "2024-12-02",
-  "statementPeriodEnd": "2025-01-01",
-  "transactions": [
-    {
-      "date": "2024-01-15",
-      "description": "Original description from statement",
-      "amount": -42.50,
-      "category": "Food",
-      "subcategory": "Restaurants",
-      "merchant": "Chipotle",
-      "isTransfer": false
-    }
-  ]
-}
+Return ONLY valid JSON in COMPACT format (minimal whitespace) like this:
+{"institution":"Bank Name","accountType":"credit_card","statementPeriodStart":"2024-12-02","statementPeriodEnd":"2025-01-01","transactions":[{"date":"2024-01-15","description":"Original description","amount":-42.50,"category":"Food","subcategory":"Restaurants","merchant":"Chipotle","isTransfer":false}]}
 
 STATEMENT TEXT:
 ${text.slice(0, 30000)}`;
@@ -189,18 +225,19 @@ ${text.slice(0, 30000)}`;
       messages: [
         {
           role: 'system',
-          content: 'You are a precise financial document parser. Always respond with valid JSON only. Extract every transaction you can find in the statement. Pay attention to date formats and amount signs.',
+          content: 'You are a precise financial document parser. Always respond with valid JSON only, using minimal whitespace. Extract every transaction you can find in the statement. Pay attention to date formats and amount signs.',
         },
         { role: 'user', content: prompt },
       ],
       temperature: 0.1,
-      max_tokens: 8000,
+      max_tokens: 16000,
     });
 
     const content = response.choices[0]?.message?.content || '';
+    const finishReason = response.choices[0]?.finish_reason;
 
     // Extract JSON from response (handle markdown code blocks)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return {
         success: false,
@@ -211,7 +248,14 @@ ${text.slice(0, 30000)}`;
       };
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as {
+    let jsonStr = jsonMatch[0];
+
+    // If response was truncated due to token limit, try to repair the JSON
+    if (finishReason === 'length') {
+      jsonStr = repairTruncatedJSON(jsonStr);
+    }
+
+    const parsed = JSON.parse(jsonStr) as {
       institution: string;
       accountType: 'credit_card' | 'bank';
       statementPeriodStart?: string;

@@ -117,7 +117,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       clearTimeout(timeoutId);
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || data.success === false) {
         setError(data.error || 'Failed to preview file');
         setStage('idle');
         return;

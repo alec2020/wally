@@ -8,7 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, Plus, Building2, Camera, Tag, X, Brain, Pencil, Check, Eye, EyeOff, Key, ExternalLink } from 'lucide-react';
+import {
+  TrashIcon,
+  PlusIcon,
+  BuildingOfficeIcon,
+  CameraIcon,
+  TagIcon,
+  XMarkIcon,
+  SparklesIcon,
+  PencilIcon,
+  CheckIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  KeyIcon,
+  ArrowTopRightOnSquareIcon,
+} from '@heroicons/react/24/outline';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeAccounts } from '@/lib/fake-data';
 
@@ -443,19 +457,19 @@ export default function SettingsPage() {
       <Tabs defaultValue="accounts" className="space-y-6">
         <TabsList>
           <TabsTrigger value="accounts" className="gap-2">
-            <Building2 className="h-4 w-4" />
+            <BuildingOfficeIcon className="h-4 w-4" />
             Accounts
           </TabsTrigger>
           <TabsTrigger value="categories" className="gap-2">
-            <Tag className="h-4 w-4" />
+            <TagIcon className="h-4 w-4" />
             Categories
           </TabsTrigger>
           <TabsTrigger value="ai" className="gap-2">
-            <Brain className="h-4 w-4" />
+            <SparklesIcon className="h-4 w-4" />
             AI
           </TabsTrigger>
           <TabsTrigger value="general" className="gap-2">
-            <Camera className="h-4 w-4" />
+            <CameraIcon className="h-4 w-4" />
             General
           </TabsTrigger>
         </TabsList>
@@ -543,7 +557,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="flex items-end">
                     <Button onClick={handleAddAccount}>
-                      <Plus className="h-4 w-4 mr-2" />
+                      <PlusIcon className="h-4 w-4 mr-2" />
                       Add
                     </Button>
                   </div>
@@ -589,7 +603,7 @@ export default function SettingsPage() {
                         onClick={() => handleDeleteCategory(category.id)}
                         className="ml-1 p-0.5 hover:bg-muted rounded-full transition-colors"
                       >
-                        <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                        <XMarkIcon className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                       </button>
                     </div>
                   ))}
@@ -610,7 +624,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <Button onClick={handleAddCategory}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <PlusIcon className="h-4 w-4 mr-2" />
                     Add
                   </Button>
                 </div>
@@ -625,7 +639,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
+                <KeyIcon className="h-5 w-5" />
                 API Configuration
               </CardTitle>
               <CardDescription>
@@ -636,7 +650,7 @@ export default function SettingsPage() {
                   rel="noopener noreferrer"
                   className="text-emerald-600 dark:text-emerald-500 hover:underline inline-flex items-center gap-1"
                 >
-                  Get an API key <ExternalLink className="h-3 w-3" />
+                  Get an API key <ArrowTopRightOnSquareIcon className="h-3 w-3" />
                 </a>
               </CardDescription>
             </CardHeader>
@@ -696,7 +710,7 @@ export default function SettingsPage() {
                         onClick={() => setShowApiKey(!showApiKey)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
-                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showApiKey ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
@@ -748,7 +762,7 @@ export default function SettingsPage() {
                     </Button>
                     {aiSettingsSaved && (
                       <span className="text-sm text-green-600 dark:text-green-500 flex items-center gap-1">
-                        <Check className="h-4 w-4" /> Saved
+                        <CheckIcon className="h-4 w-4" /> Saved
                       </span>
                     )}
                   </div>
@@ -761,7 +775,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
+                <SparklesIcon className="h-5 w-5" />
                 Categorization Rules
               </CardTitle>
               <CardDescription>
@@ -792,7 +806,7 @@ export default function SettingsPage() {
                     className="flex-1"
                   />
                   <Button onClick={handleAddPreference}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <PlusIcon className="h-4 w-4 mr-2" />
                     Add
                   </Button>
                 </div>
@@ -829,10 +843,10 @@ export default function SettingsPage() {
                             autoFocus
                           />
                           <Button size="sm" onClick={handleSavePreference}>
-                            <Check className="h-4 w-4" />
+                            <CheckIcon className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                            <X className="h-4 w-4" />
+                            <XMarkIcon className="h-4 w-4" />
                           </Button>
                         </div>
                       ) : (
@@ -851,14 +865,14 @@ export default function SettingsPage() {
                               className="p-2 hover:bg-muted rounded-md transition-colors"
                               title="Edit this rule"
                             >
-                              <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                              <PencilIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                             </button>
                             <button
                               onClick={() => handleDeletePreference(pref.id)}
                               className="p-2 hover:bg-muted rounded-md transition-colors"
                               title="Remove this rule"
                             >
-                              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                              <TrashIcon className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                             </button>
                           </div>
                         </>
