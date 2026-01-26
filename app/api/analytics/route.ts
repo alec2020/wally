@@ -10,7 +10,7 @@ import {
   getLatestBalances,
   getMonthlyExpensesByCategory,
   getSubscriptions,
-  getMonthlySavingsRate,
+  getSavingsRateForPeriod,
   getMerchantFrequency,
   getAssets,
   getLiabilities,
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // When filtering by date range, use minOccurrences=1 since we're looking at a specific period
     // When viewing all time, use minOccurrences=2 to filter out one-off miscategorized payments
     const subscriptions = getSubscriptions(startDate && endDate ? 1 : 2, startDate, endDate);
-    const savingsRateData = getMonthlySavingsRate(12);
+    const savingsRateData = getSavingsRateForPeriod(startDate, endDate);
     const merchantFrequency = getMerchantFrequency(20);
     // Calculate net worth including assets and liabilities
     const accountsTotal = latestBalances.reduce((sum, b) => sum + b.balance, 0);
@@ -183,8 +183,10 @@ export async function GET(request: NextRequest) {
       // New analytics features
       subscriptions,
       savingsRate: {
-        current: savingsRateData.length > 0 ? savingsRateData[0].rate : 0,
-        history: savingsRateData,
+        current: savingsRateData.rate,
+        income: savingsRateData.income,
+        expenses: savingsRateData.expenses,
+        saved: savingsRateData.saved,
       },
       merchantFrequency,
     });

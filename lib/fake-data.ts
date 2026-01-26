@@ -193,28 +193,16 @@ export function generateFakeSubscriptions() {
 }
 
 export function generateFakeSavingsRate() {
-  const history = [];
-  for (let i = 0; i < 12; i++) {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const income = randomAmount(6000, 9000);
-    const expenses = randomAmount(4000, 6500);
-    const saved = income - expenses;
-    const rate = Math.round((saved / income) * 1000) / 10;
-
-    history.push({
-      month,
-      income,
-      expenses,
-      saved,
-      rate,
-    });
-  }
+  const income = randomAmount(6000, 9000);
+  const expenses = randomAmount(4000, 6500);
+  const saved = income - expenses;
+  const rate = Math.round((saved / income) * 1000) / 10;
 
   return {
-    current: history[0].rate,
-    history,
+    current: rate,
+    income,
+    expenses,
+    saved,
   };
 }
 

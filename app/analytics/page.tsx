@@ -59,13 +59,9 @@ interface AnalyticsData {
   }[];
   savingsRate: {
     current: number;
-    history: {
-      month: string;
-      income: number;
-      expenses: number;
-      saved: number;
-      rate: number;
-    }[];
+    income: number;
+    expenses: number;
+    saved: number;
   };
   merchantFrequency: {
     merchant: string;

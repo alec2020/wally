@@ -88,6 +88,15 @@ export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
  * Tries to close any unclosed arrays and objects to make the JSON parseable.
  */
 function repairTruncatedJSON(jsonStr: string): string {
+  // Remove any non-JSON prefix text (e.g., "Here is the JSON:")
+  const jsonStart = jsonStr.indexOf('{');
+  if (jsonStart > 0) {
+    jsonStr = jsonStr.slice(jsonStart);
+  }
+
+  // Remove trailing commas before ] or } (common AI mistake)
+  jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1');
+
   // Count open brackets/braces
   let openBraces = 0;
   let openBrackets = 0;
@@ -237,8 +246,12 @@ ${text.slice(0, 30000)}`;
     const finishReason = response.choices[0]?.finish_reason;
 
     // Extract JSON from response (handle markdown code blocks)
-    let jsonMatch = content.match(/\{[\s\S]*\}/);
+    // First strip any markdown code block wrappers
+    let cleanContent = content.replace(/```json?\n?/g, '').replace(/```/g, '');
+
+    let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.error('PDF parsing: No JSON found in AI response. Content preview:', content.slice(0, 500));
       return {
         success: false,
         institution: 'Unknown',
@@ -255,7 +268,33 @@ ${text.slice(0, 30000)}`;
       jsonStr = repairTruncatedJSON(jsonStr);
     }
 
-    const parsed = JSON.parse(jsonStr) as {
+    // Try to parse, and if it fails, attempt repair and try again
+    let parsed: {
+      institution: string;
+      accountType: 'credit_card' | 'bank';
+      statementPeriodStart?: string;
+      statementPeriodEnd?: string;
+      transactions: Array<{
+        date: string;
+        description: string;
+        amount: number;
+        category?: string;
+        subcategory?: string;
+        merchant?: string;
+        isTransfer?: boolean;
+      }>;
+    };
+
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      // First parse failed, try to repair and parse again
+      console.log('PDF parsing: Initial JSON parse failed, attempting repair...');
+      jsonStr = repairTruncatedJSON(jsonStr);
+      parsed = JSON.parse(jsonStr);
+    }
+
+    parsed = parsed as {
       institution: string;
       accountType: 'credit_card' | 'bank';
       statementPeriodStart?: string;

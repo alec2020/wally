@@ -13,7 +13,9 @@ function getDataPath(): string {
   return process.cwd();
 }
 
-const DB_PATH = path.join(getDataPath(), 'finance.db');
+// Allow overriding the database filename via environment variable
+const DB_NAME = process.env.DB_NAME || 'finance.db';
+const DB_PATH = path.join(getDataPath(), DB_NAME);
 
 let db: Database.Database | null = null;
 
@@ -868,6 +870,44 @@ export function getMonthlySavingsRate(months: number = 12): SavingsData[] {
       rate: Math.round(rate * 10) / 10, // Round to 1 decimal
     };
   });
+}
+
+export function getSavingsRateForPeriod(startDate?: string, endDate?: string): SavingsData {
+  let query = `
+    SELECT
+      SUM(CASE WHEN amount > 0 AND is_transfer = 0 AND category = 'Income' THEN amount ELSE 0 END) as income,
+      ABS(SUM(CASE
+        WHEN amount < 0 AND is_transfer = 0 AND category != 'Investing' THEN amount
+        WHEN amount > 0 AND is_transfer = 0 AND category IS NOT NULL AND category != 'Income' AND category != 'Investing' THEN amount
+        ELSE 0
+      END)) as expenses
+    FROM transactions
+    WHERE 1=1
+  `;
+  const params: string[] = [];
+
+  if (startDate) {
+    query += ' AND date >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    query += ' AND date <= ?';
+    params.push(endDate);
+  }
+
+  const row = getDb().prepare(query).get(...params) as { income: number; expenses: number };
+  const income = row.income || 0;
+  const expenses = row.expenses || 0;
+  const saved = income - expenses;
+  const rate = income > 0 ? (saved / income) * 100 : 0;
+
+  return {
+    month: startDate && endDate ? `${startDate} to ${endDate}` : 'all-time',
+    income,
+    expenses,
+    saved,
+    rate: Math.round(rate * 10) / 10,
+  };
 }
 
 // Merchant Frequency (visits-based, not $$ based)
