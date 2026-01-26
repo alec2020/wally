@@ -1,6 +1,6 @@
 ---
-name: "Wally Analysis"
-description: "Analyze Wally finance tracker transactions - spending by category, subscriptions, savings rate, merchant patterns, and budget insights via SQLite"
+name: wally-analysis
+description: Analyze Wally finance tracker transactions - spending by category, subscriptions, savings rate, merchant patterns, and budget insights via SQLite
 ---
 
 # Wally Transaction Analysis
@@ -21,7 +21,6 @@ Skill for answering financial analysis questions about the Wally finance tracker
 | description | TEXT | Raw transaction description |
 | amount | REAL | **Negative = expense, Positive = income** |
 | category | TEXT | Income, Housing, Transportation, Groceries, Food, Shopping, Entertainment, Health, Travel, Financial, Subscriptions, Investing, Other |
-| subcategory | TEXT | e.g., Restaurants, Delivery, Coffee for Food |
 | merchant | TEXT | Normalized merchant name |
 | is_transfer | INTEGER | 1 = transfer between accounts (exclude from spending) |
 | subscription_frequency | TEXT | 'monthly', 'annual', or NULL |
@@ -98,20 +97,6 @@ HAVING COUNT(*) >= 3
 ORDER BY amount DESC;
 ```
 
-### Subcategory Breakdown (e.g., Food)
-```sql
-SELECT
-  subcategory,
-  ROUND(SUM(ABS(amount)), 2) as total_spent,
-  COUNT(*) as count
-FROM transactions
-WHERE category = 'Food'
-  AND date >= date('now', '-12 months')
-  AND amount < 0
-GROUP BY subcategory
-ORDER BY total_spent DESC;
-```
-
 ### Monthly Spending for Specific Category/Merchant
 ```sql
 SELECT
@@ -121,7 +106,7 @@ SELECT
 FROM transactions
 WHERE date >= date('now', '-12 months')
   AND amount < 0
-  AND (merchant LIKE '%DoorDash%' OR subcategory = 'Delivery')
+  AND merchant LIKE '%DoorDash%'
 GROUP BY month
 ORDER BY month;
 ```
