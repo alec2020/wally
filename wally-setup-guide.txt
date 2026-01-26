@@ -1,0 +1,285 @@
+================================================================================
+                    WALLY SETUP GUIDE FOR MAC
+                    (No coding experience needed!)
+================================================================================
+
+This guide will walk you through setting up Wally on your Mac. Each step
+includes exactly what to click or type. Don't worry if you've never used
+Terminal before - just follow along!
+
+
+================================================================================
+STEP 1: INSTALL NODE.JS
+================================================================================
+
+Node.js is the engine that runs Wally. Here's how to install it:
+
+1. Open your web browser (Safari, Chrome, etc.)
+2. Go to: https://nodejs.org
+3. You'll see two green download buttons - click the one that says "LTS"
+   (LTS means "Long Term Support" - it's the stable version)
+4. A file will download (something like "node-v20.x.x.pkg")
+5. Open your Downloads folder and double-click the file
+6. Follow the installer:
+   - Click "Continue" on each screen
+   - Click "Agree" to accept the license
+   - Click "Install"
+   - Enter your Mac password when asked
+   - Click "Close" when finished
+
+That's it! Node.js is now installed.
+
+
+================================================================================
+STEP 2: OPEN TERMINAL
+================================================================================
+
+Terminal is where you'll type commands to set up and run Wally.
+
+1. Press Command + Space (the Command key has a ⌘ symbol)
+2. A search bar appears - type: Terminal
+3. Press Enter (or click "Terminal" in the results)
+
+A window will open with a blinking cursor. This is Terminal!
+
+TIP: You might want to keep Terminal in your Dock for easy access. While
+Terminal is open, right-click its icon in the Dock and choose
+"Options" > "Keep in Dock"
+
+
+================================================================================
+STEP 3: INSTALL GIT
+================================================================================
+
+Git is a tool that downloads and updates Wally's code.
+
+In Terminal, type this command and press Enter:
+
+    git --version
+
+What happens next:
+
+- If you see something like "git version 2.x.x" -> Git is already installed!
+  Skip to Step 4.
+
+- If a popup appears asking to install "developer tools" or "Xcode Command
+  Line Tools" -> Click "Install" and wait for it to finish (this may take
+  several minutes). When done, close and reopen Terminal.
+
+
+================================================================================
+STEP 4: CHOOSE WHERE TO INSTALL WALLY
+================================================================================
+
+Let's put Wally in your Documents folder. In Terminal, type:
+
+    cd ~/Documents
+
+Then press Enter.
+
+(The "cd" command means "change directory" - you're telling Terminal to
+go to your Documents folder)
+
+
+================================================================================
+STEP 5: DOWNLOAD WALLY
+================================================================================
+
+Now we'll download Wally's code. In Terminal, type:
+
+    git clone https://github.com/alec2020/wally.git
+
+Press Enter and wait for the download to complete. You'll see progress
+messages as files are downloaded.
+
+When it's done, go into the Wally folder by typing:
+
+    cd wally
+
+Press Enter.
+
+
+================================================================================
+STEP 6: INSTALL WALLY'S REQUIREMENTS
+================================================================================
+
+Wally needs some additional software to run. Install it by typing:
+
+    npm install
+
+Press Enter and wait. You'll see lots of text scrolling by - this is normal!
+It may take a few minutes. Wait until you see the cursor blinking again.
+
+NOTE: You might see some "WARN" messages - these are usually fine to ignore.
+Only worry if you see "ERR!" messages in red.
+
+
+================================================================================
+STEP 7: START WALLY
+================================================================================
+
+You're ready to run Wally! Type:
+
+    npm run dev
+
+Press Enter. After a few seconds, you'll see a message like:
+
+    ▲ Next.js 14.x.x
+    - Local: http://localhost:3000
+
+Now:
+1. Open your web browser
+2. Go to: http://localhost:3000
+3. Wally should appear!
+
+IMPORTANT: Keep Terminal open while using Wally. The Terminal window is
+running Wally - if you close it, Wally stops working.
+
+
+================================================================================
+STEP 8: SET UP AI FEATURES (OPTIONAL)
+================================================================================
+
+Wally can use AI to automatically read your bank statements. This requires
+an API key from OpenRouter.
+
+If you want to skip this for now, that's fine! You can add transactions
+manually and set up AI later.
+
+To set up AI:
+
+1. Go to: https://openrouter.ai
+2. Create an account (you can sign in with Google)
+3. Add some credit ($5 is plenty to start)
+4. Go to "Keys" in your OpenRouter dashboard
+5. Click "Create Key"
+6. Copy the key (it starts with "sk-or-")
+7. In Wally, click the Settings icon (gear) in the sidebar
+8. Paste your API key and save
+
+
+================================================================================
+STEP 9: DAY-TO-DAY USAGE
+================================================================================
+
+Every time you want to use Wally:
+
+TO START WALLY:
+1. Open Terminal (Command + Space, type "Terminal", press Enter)
+2. Type: cd ~/Documents/wally
+3. Press Enter
+4. Type: npm run dev
+5. Press Enter
+6. Open your browser to: http://localhost:3000
+
+TO STOP WALLY:
+1. Go to the Terminal window
+2. Press Control + C (this stops the server)
+3. You can now close Terminal
+
+TIP: Wally stores all your data locally in a file called "finance.db" -
+your financial data never leaves your computer!
+
+
+================================================================================
+STEP 10: GETTING UPDATES
+================================================================================
+
+Occasionally, Wally gets new features and fixes. Here's how to update:
+
+1. Make sure Wally is stopped (Control + C in Terminal if it's running)
+2. In Terminal, make sure you're in the Wally folder:
+
+       cd ~/Documents/wally
+
+3. Download the latest changes:
+
+       git pull
+
+4. Install any new requirements:
+
+       npm install
+
+5. Start Wally again:
+
+       npm run dev
+
+
+================================================================================
+STEP 11: TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "command not found: npm" or "command not found: node"
+SOLUTION: Node.js didn't install correctly. Go back to Step 1 and reinstall.
+          After installing, close Terminal completely and reopen it.
+
+PROBLEM: "command not found: git"
+SOLUTION: Git didn't install. Go back to Step 3 and run "git --version"
+          again to trigger the installer.
+
+PROBLEM: "npm install" shows errors with "ERR!"
+SOLUTION: Try these steps:
+          1. Delete the problem folder: rm -rf node_modules
+          2. Try again: npm install
+
+PROBLEM: "EACCES permission denied"
+SOLUTION: There's a permissions issue. Try:
+          sudo npm install
+          (You'll need to enter your Mac password)
+
+PROBLEM: "address already in use" when starting
+SOLUTION: Something else is using port 3000. Either:
+          - Find and quit the other application, OR
+          - Start Wally on a different port: npm run dev -- -p 3001
+            (Then go to http://localhost:3001 instead)
+
+PROBLEM: Can't connect to localhost:3000
+SOLUTION:
+          - Make sure Terminal shows Wally is running (you should see the
+            Next.js message)
+          - Try: http://127.0.0.1:3000 instead
+          - Make sure no VPN is running
+
+PROBLEM: AI/PDF parsing isn't working
+SOLUTION:
+          - Check your OpenRouter API key is entered correctly in Settings
+          - Make sure you have credit in your OpenRouter account
+          - Some bank statements have unusual formats - try a different one
+
+PROBLEM: Everything broke and nothing works!
+SOLUTION: Start fresh:
+          1. cd ~/Documents
+          2. rm -rf wally
+          3. Go back to Step 5 and re-download
+
+
+================================================================================
+NEED MORE HELP?
+================================================================================
+
+If you're stuck, you can:
+
+1. Check the GitHub issues page for known problems
+2. Open a new issue describing your problem
+
+Remember: There are no stupid questions! Everyone starts somewhere.
+
+
+================================================================================
+QUICK REFERENCE CARD
+================================================================================
+
+Start Wally:
+    cd ~/Documents/wally && npm run dev
+
+Stop Wally:
+    Control + C
+
+Update Wally:
+    cd ~/Documents/wally && git pull && npm install
+
+Open Wally in browser:
+    http://localhost:3000
+
+
+================================================================================
