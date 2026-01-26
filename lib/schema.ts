@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   description TEXT NOT NULL,
   amount DECIMAL(10,2) NOT NULL, -- negative = expense, positive = income
   category TEXT,
-  subcategory TEXT,
   merchant TEXT,
   is_transfer BOOLEAN DEFAULT FALSE,
   subscription_frequency TEXT, -- NULL, 'monthly', or 'annual' for Subscriptions category

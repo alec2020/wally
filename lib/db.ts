@@ -139,6 +139,34 @@ export function getDb(): Database.Database {
         CREATE INDEX IF NOT EXISTS idx_liability_payments_status ON liability_payments(status);
       `);
     }
+
+    // Migration: Remove subcategory column from transactions table
+    const subcategoryColumnCheck = db.prepare("SELECT * FROM pragma_table_info('transactions') WHERE name = 'subcategory'").get();
+    if (subcategoryColumnCheck) {
+      db.exec(`
+        CREATE TABLE transactions_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id INTEGER REFERENCES accounts(id),
+          date DATE NOT NULL,
+          description TEXT NOT NULL,
+          amount DECIMAL(10,2) NOT NULL,
+          category TEXT,
+          merchant TEXT,
+          is_transfer BOOLEAN DEFAULT FALSE,
+          subscription_frequency TEXT,
+          notes TEXT,
+          raw_data TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO transactions_new (id, account_id, date, description, amount, category, merchant, is_transfer, subscription_frequency, notes, raw_data, created_at)
+        SELECT id, account_id, date, description, amount, category, merchant, is_transfer, subscription_frequency, notes, raw_data, created_at FROM transactions;
+        DROP TABLE transactions;
+        ALTER TABLE transactions_new RENAME TO transactions;
+        CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+        CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+        CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+      `);
+    }
   }
   return db;
 }
@@ -175,7 +203,6 @@ export interface Transaction {
   description: string;
   amount: number;
   category: string | null;
-  subcategory: string | null;
   merchant: string | null;
   is_transfer: boolean;
   subscription_frequency: 'monthly' | 'annual' | null;
@@ -242,15 +269,14 @@ export function getTransactionById(id: number): Transaction | undefined {
 
 export function createTransaction(tx: Omit<Transaction, 'id' | 'created_at'>): number {
   const result = getDb().prepare(`
-    INSERT INTO transactions (account_id, date, description, amount, category, subcategory, merchant, is_transfer, notes, raw_data)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (account_id, date, description, amount, category, merchant, is_transfer, notes, raw_data)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     tx.account_id,
     tx.date,
     tx.description,
     tx.amount,
     tx.category,
-    tx.subcategory,
     tx.merchant,
     tx.is_transfer ? 1 : 0,
     tx.notes,
@@ -261,8 +287,8 @@ export function createTransaction(tx: Omit<Transaction, 'id' | 'created_at'>): n
 
 export function createTransactionsBatch(transactions: Omit<Transaction, 'id' | 'created_at'>[]): number {
   const insert = getDb().prepare(`
-    INSERT INTO transactions (account_id, date, description, amount, category, subcategory, merchant, is_transfer, notes, raw_data)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (account_id, date, description, amount, category, merchant, is_transfer, notes, raw_data)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = getDb().transaction((txs: Omit<Transaction, 'id' | 'created_at'>[]) => {
@@ -273,7 +299,6 @@ export function createTransactionsBatch(transactions: Omit<Transaction, 'id' | '
         tx.description,
         tx.amount,
         tx.category,
-        tx.subcategory,
         tx.merchant,
         tx.is_transfer ? 1 : 0,
         tx.notes,
@@ -297,10 +322,6 @@ export function updateTransaction(id: number, updates: Partial<Transaction>): vo
   if (updates.category !== undefined) {
     fields.push('category = ?');
     params.push(updates.category);
-  }
-  if (updates.subcategory !== undefined) {
-    fields.push('subcategory = ?');
-    params.push(updates.subcategory);
   }
   if (updates.merchant !== undefined) {
     fields.push('merchant = ?');
@@ -462,7 +483,7 @@ export function getTransactionCountByCategory(categoryName: string): number {
 
 export function clearCategoryFromTransactions(categoryName: string): number {
   const result = getDb().prepare(
-    'UPDATE transactions SET category = NULL, subcategory = NULL WHERE category = ?'
+    'UPDATE transactions SET category = NULL WHERE category = ?'
   ).run(categoryName);
   return result.changes;
 }

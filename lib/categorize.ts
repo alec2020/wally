@@ -28,25 +28,8 @@ function getAvailableCategories(): string[] {
   }
 }
 
-const SUBCATEGORIES: Record<string, string[]> = {
-  Income: ['Salary', 'Dividends', 'Interest', 'Side Income', 'Refunds'],
-  Housing: ['Rent/Mortgage', 'Utilities', 'Insurance', 'Maintenance', 'Rent + Utilities'],
-  Transportation: ['Gas', 'Parking', 'Public Transit', 'Rideshare', 'Car Payment', 'Insurance'],
-  Groceries: ['Supermarket', 'Wholesale Club'],
-  Food: ['Restaurants', 'Coffee', 'Delivery', 'Fast Food'],
-  Shopping: ['Clothing', 'Electronics', 'Home Goods', 'Amazon'],
-  Entertainment: ['Streaming', 'Movies', 'Games', 'Hobbies'],
-  Health: ['Medical', 'Pharmacy', 'Gym', 'Personal Care'],
-  Travel: ['Flights', 'Hotels', 'Vacation'],
-  Financial: ['Investments', 'Fees', 'Interest Paid', 'Credit Card Payment', 'Statement Credit', 'Reimbursement'],
-  Subscriptions: ['Software', 'Memberships'],
-  Investing: ['Brokerage Deposit', 'Stock Purchase', '401k', 'IRA'],
-  Other: ['Miscellaneous', 'Uncategorized'],
-};
-
 export interface CategorizationResult {
   category: string;
-  subcategory: string | null;
   merchant: string;
   confidence: number;
   isTransfer?: boolean;
@@ -137,7 +120,7 @@ USER'S CATEGORIZATION PREFERENCES (follow these exactly):
 ${preferencesContext}
 
 IMPORTANT: Apply these preferences precisely. They can control:
-- Categories and subcategories
+- Categories
 - Transfer status (if marked as "transfer", set isTransfer: true)
 - Merchant display names (if a preference says how to display a merchant name, use that for the "merchant" field)
 
@@ -171,18 +154,17 @@ If a transaction matches a debt payment rule, include "liabilityId" in the respo
 
   const prompt = `Categorize these financial transactions. For each, provide:
 1. Category (one of: ${categories.join(', ')})
-2. Subcategory (optional, based on the category)
-3. Clean merchant name (the recognizable business name)
-4. isTransfer (true if this is a transfer between accounts, credit card payment, or similar - not true spending)
-5. liabilityId (optional, only if this matches a debt payment rule below)
+2. Clean merchant name (the recognizable business name)
+3. isTransfer (true if this is a transfer between accounts, credit card payment, or similar - not true spending)
+4. liabilityId (optional, only if this matches a debt payment rule below)
 ${preferencesSection}${liabilitySection}
 Transactions:
 ${transactionList}
 
 Respond in JSON format:
 [
-  {"index": 1, "category": "Food", "subcategory": "Restaurants", "merchant": "Chipotle", "confidence": 0.95, "isTransfer": false},
-  {"index": 2, "category": "Financial", "subcategory": "Fees", "merchant": "Wells Fargo", "confidence": 0.95, "isTransfer": false, "liabilityId": 1},
+  {"index": 1, "category": "Food", "merchant": "Chipotle", "confidence": 0.95, "isTransfer": false},
+  {"index": 2, "category": "Financial", "merchant": "Wells Fargo", "confidence": 0.95, "isTransfer": false, "liabilityId": 1},
   ...
 ]
 
@@ -208,7 +190,6 @@ Be concise. Only return the JSON array.`;
     if (!jsonMatch) {
       return transactions.map((tx) => ({
         category: 'Other',
-        subcategory: 'Uncategorized',
         merchant: tx.description,
         confidence: 0,
       }));
@@ -217,7 +198,6 @@ Be concise. Only return the JSON array.`;
     const parsed = JSON.parse(jsonMatch[0]) as Array<{
       index: number;
       category: string;
-      subcategory?: string;
       merchant: string;
       confidence?: number;
       isTransfer?: boolean;
@@ -229,7 +209,6 @@ Be concise. Only return the JSON array.`;
       if (!result) {
         return {
           category: 'Other',
-          subcategory: 'Uncategorized',
           merchant: tx.description,
           confidence: 0,
         };
@@ -242,7 +221,6 @@ Be concise. Only return the JSON array.`;
 
       return {
         category,
-        subcategory: result.subcategory || null,
         merchant: result.merchant || tx.description,
         confidence: result.confidence || 0.8,
         isTransfer: result.isTransfer || false,
@@ -253,7 +231,6 @@ Be concise. Only return the JSON array.`;
     console.error('OpenAI categorization error:', error);
     return transactions.map((tx) => ({
       category: 'Other',
-      subcategory: 'Uncategorized',
       merchant: tx.description,
       confidence: 0,
     }));
@@ -268,66 +245,65 @@ export function categorizeWithRules(description: string, amount: number): Catego
   // Income patterns (only true income, not credits/refunds)
   if (amount > 0) {
     if (desc.includes('payroll') || desc.includes('salary') || desc.includes('direct dep')) {
-      return { category: 'Income', subcategory: 'Salary', merchant: description, confidence: 0.9 };
+      return { category: 'Income', merchant: description, confidence: 0.9 };
     }
     if (desc.includes('dividend') || desc.includes('div')) {
-      return { category: 'Income', subcategory: 'Dividends', merchant: description, confidence: 0.9 };
+      return { category: 'Income', merchant: description, confidence: 0.9 };
     }
     if (desc.includes('interest') && !desc.includes('interest charge')) {
-      return { category: 'Income', subcategory: 'Interest', merchant: description, confidence: 0.9 };
+      return { category: 'Income', merchant: description, confidence: 0.9 };
     }
     // Note: Refunds and credits are handled by custom rules as transfers, not income
   }
 
   // Expense patterns
-  const patterns: Array<{ pattern: RegExp; category: string; subcategory: string; merchant?: string }> = [
+  const patterns: Array<{ pattern: RegExp; category: string; merchant?: string }> = [
     // Food
-    { pattern: /starbucks|dunkin|peet|coffee/i, category: 'Food', subcategory: 'Coffee', merchant: 'Starbucks' },
-    { pattern: /mcdonald|wendy|burger|taco bell|chipotle|subway|five guys/i, category: 'Food', subcategory: 'Restaurants' },
-    { pattern: /doordash|uber eats|grubhub|postmates/i, category: 'Food', subcategory: 'Delivery' },
-    { pattern: /kroger|safeway|whole foods|trader joe|walmart|target.*grocery|aldi|publix/i, category: 'Food', subcategory: 'Groceries' },
+    { pattern: /starbucks|dunkin|peet|coffee/i, category: 'Food', merchant: 'Starbucks' },
+    { pattern: /mcdonald|wendy|burger|taco bell|chipotle|subway|five guys/i, category: 'Food' },
+    { pattern: /doordash|uber eats|grubhub|postmates/i, category: 'Food' },
+    { pattern: /kroger|safeway|whole foods|trader joe|walmart|target.*grocery|aldi|publix/i, category: 'Food' },
 
     // Transportation
-    { pattern: /shell|exxon|mobil|chevron|gas|bp |76 /i, category: 'Transportation', subcategory: 'Gas' },
-    { pattern: /uber(?! eats)|lyft/i, category: 'Transportation', subcategory: 'Rideshare' },
-    { pattern: /parking|park\s/i, category: 'Transportation', subcategory: 'Parking' },
+    { pattern: /shell|exxon|mobil|chevron|gas|bp |76 /i, category: 'Transportation' },
+    { pattern: /uber(?! eats)|lyft/i, category: 'Transportation' },
+    { pattern: /parking|park\s/i, category: 'Transportation' },
 
     // Shopping
-    { pattern: /amazon|amzn/i, category: 'Shopping', subcategory: 'Amazon', merchant: 'Amazon' },
-    { pattern: /target|walmart|costco|home depot|lowes/i, category: 'Shopping', subcategory: 'Home Goods' },
-    { pattern: /apple\.com|best buy|electronics/i, category: 'Shopping', subcategory: 'Electronics' },
+    { pattern: /amazon|amzn/i, category: 'Shopping', merchant: 'Amazon' },
+    { pattern: /target|walmart|costco|home depot|lowes/i, category: 'Shopping' },
+    { pattern: /apple\.com|best buy|electronics/i, category: 'Shopping' },
 
     // Entertainment
-    { pattern: /netflix/i, category: 'Entertainment', subcategory: 'Streaming', merchant: 'Netflix' },
-    { pattern: /spotify/i, category: 'Entertainment', subcategory: 'Streaming', merchant: 'Spotify' },
-    { pattern: /hulu|disney\+|hbo|prime video/i, category: 'Entertainment', subcategory: 'Streaming' },
-    { pattern: /amc|regal|cinema|movie/i, category: 'Entertainment', subcategory: 'Movies' },
+    { pattern: /netflix/i, category: 'Entertainment', merchant: 'Netflix' },
+    { pattern: /spotify/i, category: 'Entertainment', merchant: 'Spotify' },
+    { pattern: /hulu|disney\+|hbo|prime video/i, category: 'Entertainment' },
+    { pattern: /amc|regal|cinema|movie/i, category: 'Entertainment' },
 
     // Subscriptions
-    { pattern: /github|notion|figma|adobe|microsoft 365|dropbox/i, category: 'Subscriptions', subcategory: 'Software' },
-    { pattern: /gym|fitness|planet fitness|ymca|equinox/i, category: 'Health', subcategory: 'Gym' },
+    { pattern: /github|notion|figma|adobe|microsoft 365|dropbox/i, category: 'Subscriptions' },
+    { pattern: /gym|fitness|planet fitness|ymca|equinox/i, category: 'Health' },
 
     // Housing
-    { pattern: /electric|power|utility|water|gas bill|pgce|con ed/i, category: 'Housing', subcategory: 'Utilities' },
-    { pattern: /rent|lease|apartment/i, category: 'Housing', subcategory: 'Rent/Mortgage' },
+    { pattern: /electric|power|utility|water|gas bill|pgce|con ed/i, category: 'Housing' },
+    { pattern: /rent|lease|apartment/i, category: 'Housing' },
 
     // Health
-    { pattern: /cvs|walgreens|pharmacy|rx/i, category: 'Health', subcategory: 'Pharmacy' },
-    { pattern: /doctor|medical|health|hospital|clinic/i, category: 'Health', subcategory: 'Medical' },
+    { pattern: /cvs|walgreens|pharmacy|rx/i, category: 'Health' },
+    { pattern: /doctor|medical|health|hospital|clinic/i, category: 'Health' },
 
     // Travel
-    { pattern: /airline|united|delta|american air|southwest|jetblue/i, category: 'Travel', subcategory: 'Flights' },
-    { pattern: /hotel|marriott|hilton|hyatt|airbnb/i, category: 'Travel', subcategory: 'Hotels' },
+    { pattern: /airline|united|delta|american air|southwest|jetblue/i, category: 'Travel' },
+    { pattern: /hotel|marriott|hilton|hyatt|airbnb/i, category: 'Travel' },
 
     // Financial
-    { pattern: /fee|atm|overdraft|interest charge/i, category: 'Financial', subcategory: 'Fees' },
+    { pattern: /fee|atm|overdraft|interest charge/i, category: 'Financial' },
   ];
 
-  for (const { pattern, category, subcategory, merchant } of patterns) {
+  for (const { pattern, category, merchant } of patterns) {
     if (pattern.test(desc)) {
       return {
         category,
-        subcategory,
         merchant: merchant || description,
         confidence: 0.7,
       };
@@ -336,7 +312,6 @@ export function categorizeWithRules(description: string, amount: number): Catego
 
   return {
     category: 'Other',
-    subcategory: 'Uncategorized',
     merchant: description,
     confidence: 0,
   };

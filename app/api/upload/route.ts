@@ -66,7 +66,6 @@ export async function POST(request: NextRequest) {
       description: string;
       amount: number;
       category?: string;
-      subcategory?: string;
       merchant?: string;
       isTransfer?: boolean;
       rawData?: string;
@@ -77,7 +76,6 @@ export async function POST(request: NextRequest) {
       description: tx.description,
       amount: tx.amount,
       category: tx.category || null,
-      subcategory: tx.subcategory || null,
       merchant: tx.merchant || null,
       is_transfer: tx.isTransfer || false,
       subscription_frequency: null,
@@ -100,9 +98,6 @@ export async function POST(request: NextRequest) {
 
         // Generate natural language instruction
         let instruction = `"${merchantName}" should be categorized as ${finalCategory}`;
-        if (tx.subcategory) {
-          instruction += ` / ${tx.subcategory}`;
-        }
         if (tx.isTransfer) {
           instruction += ' (mark as transfer)';
         }
@@ -176,7 +171,6 @@ export async function PUT(request: NextRequest) {
       description: string;
       amount: number;
       category: string | null;
-      subcategory: string | null;
       merchant: string | null;
       isTransfer: boolean;
       rawData: string;
@@ -268,7 +262,6 @@ export async function PUT(request: NextRequest) {
         description: tx.description,
         amount: tx.amount,
         category: tx.category || null,
-        subcategory: null,
         merchant: tx.merchant || null,
         isTransfer: false,
         rawData: tx.rawData,
@@ -297,7 +290,6 @@ export async function PUT(request: NextRequest) {
               amount: tx.amount,
               rawData: tx.rawData,
               category,
-              subcategory: categorizations[i]?.subcategory || null,
               merchant: categorizations[i]?.merchant || tx.merchant || null,
               isTransfer: categorizations[i]?.isTransfer || false,
               originalCategory: category,
@@ -317,7 +309,6 @@ export async function PUT(request: NextRequest) {
               amount: tx.amount,
               rawData: tx.rawData,
               category,
-              subcategory: result.subcategory || null,
               merchant: tx.merchant || result.merchant,
               isTransfer: result.isTransfer || false,
               originalCategory: category,
@@ -337,7 +328,6 @@ export async function PUT(request: NextRequest) {
             amount: tx.amount,
             rawData: tx.rawData,
             category,
-            subcategory: result.subcategory || null,
             merchant: tx.merchant || result.merchant,
             isTransfer: result.isTransfer || false,
             originalCategory: category,

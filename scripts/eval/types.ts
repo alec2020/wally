@@ -5,7 +5,6 @@ export interface GroundTruthTransaction {
   description: string;
   amount: number;
   category: string | null;
-  subcategory: string | null;
   merchant: string | null;
   is_transfer: boolean;
   raw_data: string | null;
@@ -17,7 +16,6 @@ export interface AITransaction {
   description: string;
   amount: number;
   category: string | null;
-  subcategory: string | null;
   merchant: string | null;
   isTransfer: boolean;
 }

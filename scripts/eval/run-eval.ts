@@ -58,7 +58,7 @@ USER'S CATEGORIZATION PREFERENCES (follow these exactly):
 ${preferencesContext}
 
 IMPORTANT: Apply these preferences precisely. They can control:
-- Categories and subcategories
+- Categories
 - Transfer status (if marked as "transfer", set isTransfer: true)
 - Merchant display names (if a preference says how to display a merchant name, use that for the "merchant" field)
 
@@ -75,7 +75,6 @@ If a preference includes conditions (like "above $1200" or "over $50"), ONLY app
    - description: Original transaction description text
    - amount: Negative for expenses/charges/purchases, positive for income/credits/payments received
    - category: One of: ${categories.join(', ')}
-   - subcategory: Optional, more specific categorization
    - merchant: Clean business name (e.g., "AMZN MKTP" → "Amazon", "SQ *COFFEE SHOP" → "Coffee Shop")
    - isTransfer: true if this is a transfer between accounts, credit card payment, or not real spending/income
 ${preferencesSection}
@@ -94,7 +93,6 @@ Return ONLY valid JSON in this exact format:
       "description": "Original description from statement",
       "amount": -42.50,
       "category": "Food",
-      "subcategory": "Restaurants",
       "merchant": "Chipotle",
       "isTransfer": false
     }
@@ -156,7 +154,6 @@ async function runModelOnPdf(
         description: string;
         amount: number;
         category?: string;
-        subcategory?: string;
         merchant?: string;
         isTransfer?: boolean;
       }>;
@@ -167,7 +164,6 @@ async function runModelOnPdf(
       description: tx.description || '',
       amount: typeof tx.amount === 'number' ? tx.amount : 0,
       category: tx.category || null,
-      subcategory: tx.subcategory || null,
       merchant: tx.merchant || null,
       isTransfer: tx.isTransfer || false,
     })).filter(tx => tx.date && tx.description);

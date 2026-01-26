@@ -68,7 +68,6 @@ export function generateFakeTransactions(count: number = 150) {
         ? randomAmount(3000, 8000)
         : -randomAmount(5, 500),
       category,
-      subcategory: null,
       merchant: isIncome ? null : merchant,
       is_transfer: false,
       account_id: Math.random() < 0.5 ? 1 : 2,

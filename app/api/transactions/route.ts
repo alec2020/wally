@@ -75,13 +75,9 @@ export async function PATCH(request: NextRequest) {
         if (updates.category && updates.category !== existing.category) {
           const merchantName = updates.merchant || existing.merchant || existing.description;
           const category = updates.category;
-          const subcategory = updates.subcategory ?? existing.subcategory;
           const isTransfer = updates.is_transfer ?? existing.is_transfer ?? false;
 
           let instruction = `"${merchantName}" should be categorized as ${category}`;
-          if (subcategory) {
-            instruction += ` / ${subcategory}`;
-          }
           if (isTransfer) {
             instruction += ' (mark as transfer)';
           }
@@ -136,14 +132,10 @@ export async function PATCH(request: NextRequest) {
     if (updates.category && updates.category !== existing.category) {
       const merchantName = updates.merchant || existing.merchant || existing.description;
       const category = updates.category;
-      const subcategory = updates.subcategory ?? existing.subcategory;
       const isTransfer = updates.is_transfer ?? existing.is_transfer ?? false;
 
       // Generate natural language instruction
       let instruction = `"${merchantName}" should be categorized as ${category}`;
-      if (subcategory) {
-        instruction += ` / ${subcategory}`;
-      }
       if (isTransfer) {
         instruction += ' (mark as transfer)';
       }

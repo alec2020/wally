@@ -60,7 +60,6 @@ export async function POST(request: NextRequest) {
 
       updateTransaction(tx.id, {
         category: cat.category,
-        subcategory: cat.subcategory,
         merchant: cat.merchant,
       });
       processed++;
@@ -124,7 +123,6 @@ export async function PUT(request: NextRequest) {
 
       updateTransaction(tx.id, {
         category: cat.category,
-        subcategory: cat.subcategory,
         merchant: cat.merchant,
       });
       processed++;

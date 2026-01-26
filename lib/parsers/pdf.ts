@@ -7,7 +7,6 @@ export interface PDFTransaction {
   description: string;
   amount: number;
   category: string | null;
-  subcategory: string | null;
   merchant: string | null;
   isTransfer: boolean;
   rawData: string;
@@ -182,7 +181,7 @@ USER'S CATEGORIZATION PREFERENCES (follow these exactly):
 ${preferencesContext}
 
 IMPORTANT: Apply these preferences precisely. They can control:
-- Categories and subcategories
+- Categories
 - Transfer status (if marked as "transfer", set isTransfer: true)
 - Merchant display names (if a preference says how to display a merchant name, use that for the "merchant" field)
 
@@ -207,7 +206,6 @@ TODAY'S DATE: ${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(c
    - description: Original transaction description text
    - amount: Negative for expenses/charges/purchases, positive for income/credits/payments received
    - category: One of: ${categories.join(', ')}
-   - subcategory: Optional, more specific categorization
    - merchant: Clean business name (e.g., "AMZN MKTP" → "Amazon", "SQ *COFFEE SHOP" → "Coffee Shop")
    - isTransfer: true if this is a transfer between accounts, credit card payment, or not real spending/income
 ${preferencesSection}
@@ -222,7 +220,7 @@ IMPORTANT AMOUNT RULES:
 - Interest charges and fees are NEGATIVE
 
 Return ONLY valid JSON in COMPACT format (minimal whitespace) like this:
-{"institution":"Bank Name","accountType":"credit_card","statementPeriodStart":"2024-12-02","statementPeriodEnd":"2025-01-01","transactions":[{"date":"2024-01-15","description":"Original description","amount":-42.50,"category":"Food","subcategory":"Restaurants","merchant":"Chipotle","isTransfer":false}]}
+{"institution":"Bank Name","accountType":"credit_card","statementPeriodStart":"2024-12-02","statementPeriodEnd":"2025-01-01","transactions":[{"date":"2024-01-15","description":"Original description","amount":-42.50,"category":"Food","merchant":"Chipotle","isTransfer":false}]}
 
 STATEMENT TEXT:
 ${text.slice(0, 30000)}`;
@@ -279,7 +277,6 @@ ${text.slice(0, 30000)}`;
         description: string;
         amount: number;
         category?: string;
-        subcategory?: string;
         merchant?: string;
         isTransfer?: boolean;
       }>;
@@ -304,7 +301,6 @@ ${text.slice(0, 30000)}`;
         description: string;
         amount: number;
         category?: string;
-        subcategory?: string;
         merchant?: string;
         isTransfer?: boolean;
       }>;
@@ -332,7 +328,6 @@ ${text.slice(0, 30000)}`;
         description: tx.description || '',
         amount: typeof tx.amount === 'number' ? tx.amount : 0,
         category,
-        subcategory: tx.subcategory || null,
         merchant: tx.merchant || null,
         isTransfer: tx.isTransfer || false,
         rawData: tx.description || '',

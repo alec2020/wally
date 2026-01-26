@@ -21,7 +21,6 @@ interface OldPreference {
   merchant_pattern: string;
   merchant_name: string | null;
   category: string | null;
-  subcategory: string | null;
   is_transfer: number;
   source: string;
   match_type: string;
@@ -69,13 +68,10 @@ function convertToNaturalLanguage(pref: OldPreference): string {
   if (pref.is_transfer) {
     instruction += ' should be marked as a transfer';
     if (pref.category) {
-      instruction += ` (${pref.category}${pref.subcategory ? ` / ${pref.subcategory}` : ''})`;
+      instruction += ` (${pref.category})`;
     }
   } else if (pref.category) {
     instruction += ` should be categorized as ${pref.category}`;
-    if (pref.subcategory) {
-      instruction += ` / ${pref.subcategory}`;
-    }
   }
 
   return instruction;

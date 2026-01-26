@@ -50,7 +50,6 @@ export interface PreviewTransaction {
   description: string;
   amount: number;
   category?: string | null;
-  subcategory?: string | null;
   merchant?: string | null;
   isTransfer?: boolean;
   rawData?: string;

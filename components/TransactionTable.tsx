@@ -130,7 +130,6 @@ interface Transaction {
   description: string;
   amount: number;
   category: string | null;
-  subcategory: string | null;
   merchant: string | null;
   is_transfer: boolean;
   subscription_frequency: 'monthly' | 'annual' | null;
