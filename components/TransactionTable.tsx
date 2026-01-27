@@ -43,7 +43,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, formatCurrency, formatDate, getCategoryColor } from '@/lib/utils';
+import { cn, formatCurrency, formatDate, getCategoryColor, getCategoryColorFromList } from '@/lib/utils';
 import {
   EllipsisHorizontalIcon,
   MagnifyingGlassIcon,
@@ -143,9 +143,15 @@ interface Account {
   name: string;
 }
 
+interface CategoryInfo {
+  name: string;
+  color: string | null;
+}
+
 interface TransactionTableProps {
   transactions: Transaction[];
   accounts: Account[];
+  categories?: CategoryInfo[];
   onUpdate: (id: number, updates: Partial<Transaction>) => void;
   onDelete: (id: number) => void;
   onBulkUpdate?: (ids: number[], updates: Partial<Transaction>) => Promise<void>;
@@ -178,6 +184,7 @@ type DatePreset = 'all' | 'this-month' | 'last-month' | 'last-3-months' | 'this-
 export function TransactionTable({
   transactions,
   accounts,
+  categories: categoriesProp = [],
   onUpdate,
   onDelete,
   onBulkUpdate,
@@ -187,6 +194,11 @@ export function TransactionTable({
   initialCategoryFilters,
   initialDateRange,
 }: TransactionTableProps) {
+  const getColor = (category: string) =>
+    categoriesProp.length > 0
+      ? getCategoryColorFromList(category, categoriesProp)
+      : getCategoryColor(category);
+
   const [search, setSearch] = useState('');
   const [categoryFilters, setCategoryFilters] = useState<string[]>(initialCategoryFilters || []);
   const [accountFilter, setAccountFilter] = useState<string>('all');
@@ -697,7 +709,7 @@ export function TransactionTable({
                   "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
                   cat === 'uncategorized' ? 'bg-muted text-muted-foreground' : 'text-white'
                 )}
-                style={cat !== 'uncategorized' ? { backgroundColor: getCategoryColor(cat) } : undefined}
+                style={cat !== 'uncategorized' ? { backgroundColor: getColor(cat) } : undefined}
               >
                 {cat === 'uncategorized' ? 'Uncategorized' : cat}
                 <button
@@ -885,7 +897,7 @@ export function TransactionTable({
                             tx.category ? 'text-white' : 'bg-muted text-muted-foreground'
                           )}
                           style={tx.category ? {
-                            backgroundColor: getCategoryColor(tx.category),
+                            backgroundColor: getColor(tx.category),
                           } : undefined}
                         >
                           {tx.category || 'Uncategorized'}
@@ -912,7 +924,7 @@ export function TransactionTable({
                                 'hover:opacity-80',
                                 tx.category === cat && 'ring-2 ring-offset-2 ring-gray-400'
                               )}
-                              style={{ backgroundColor: getCategoryColor(cat) }}
+                              style={{ backgroundColor: getColor(cat) }}
                             >
                               {cat}
                             </button>
@@ -1048,7 +1060,7 @@ export function TransactionTable({
                   <DropdownMenuItem key={cat} onClick={() => handleBulkCategoryChange(cat)}>
                     <span
                       className="w-2 h-2 rounded-full mr-2"
-                      style={{ backgroundColor: getCategoryColor(cat) }}
+                      style={{ backgroundColor: getColor(cat) }}
                     />
                     {cat}
                   </DropdownMenuItem>

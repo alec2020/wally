@@ -22,7 +22,14 @@ import {
   EyeSlashIcon,
   KeyIcon,
   ArrowTopRightOnSquareIcon,
+  SwatchIcon,
 } from '@heroicons/react/24/outline';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeAccounts } from '@/lib/fake-data';
 
@@ -65,6 +72,71 @@ const PRESET_MODELS = [
   { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', description: 'Open source, cheap' },
 ];
 
+const COLOR_PALETTE = [
+  '#22c55e', '#3b82f6', '#f59e0b', '#84cc16', '#ef4444',
+  '#8b5cf6', '#ec4899', '#14b8a6', '#06b6d4', '#64748b',
+  '#f97316', '#10b981', '#94a3b8', '#a855f7', '#facc15',
+];
+
+function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (color: string) => void;
+}) {
+  const [hexInput, setHexInput] = useState(value);
+
+  // Sync hexInput when value changes from outside
+  useEffect(() => {
+    setHexInput(value);
+  }, [value]);
+
+  const handleHexChange = (input: string) => {
+    setHexInput(input);
+    if (/^#[0-9A-Fa-f]{6}$/.test(input)) {
+      onChange(input);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Preset swatches grid */}
+      <div className="grid grid-cols-5 gap-2">
+        {COLOR_PALETTE.map((color) => (
+          <button
+            key={color}
+            type="button"
+            onClick={() => {
+              onChange(color);
+              setHexInput(color);
+            }}
+            className={cn(
+              'w-6 h-6 rounded-full hover:scale-110 transition-transform',
+              value === color && 'ring-2 ring-offset-2 ring-primary'
+            )}
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+
+      {/* Hex input with preview */}
+      <div className="flex items-center gap-2">
+        <div
+          className="w-8 h-8 rounded border"
+          style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(hexInput) ? hexInput : value }}
+        />
+        <Input
+          value={hexInput}
+          onChange={(e) => handleHexChange(e.target.value)}
+          placeholder="#000000"
+          className="w-24 font-mono text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -75,6 +147,8 @@ export default function SettingsPage() {
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountType, setNewAccountType] = useState('bank');
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState('#94a3b8');
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [newPreference, setNewPreference] = useState('');
   const [editingPreferenceId, setEditingPreferenceId] = useState<number | null>(null);
   const [editingPreferenceText, setEditingPreferenceText] = useState('');
@@ -354,11 +428,12 @@ export default function SettingsPage() {
       const response = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCategoryName }),
+        body: JSON.stringify({ name: newCategoryName, color: newCategoryColor }),
       });
 
       if (response.ok) {
         setNewCategoryName('');
+        setNewCategoryColor('#94a3b8');
         fetchCategories();
       } else {
         const data = await response.json();
@@ -366,6 +441,22 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Failed to add category:', error);
+    }
+  };
+
+  const handleUpdateCategoryColor = async (id: number, color: string) => {
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, color }),
+      });
+
+      if (response.ok) {
+        fetchCategories();
+      }
+    } catch (error) {
+      console.error('Failed to update category color:', error);
     }
   };
 
@@ -573,7 +664,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Categories</CardTitle>
               <CardDescription>
-                Manage transaction categories. AI will use these when categorizing new uploads.
+                Manage transaction categories. AI will use these when categorizing new uploads. Click a category to edit its color.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -588,24 +679,41 @@ export default function SettingsPage() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {categories.map((category) => (
-                    <div
-                      key={category.id}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 border rounded-full text-sm bg-card"
-                    >
-                      {category.color && (
-                        <span
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: category.color }}
-                        />
-                      )}
-                      <span>{category.name}</span>
-                      <button
-                        onClick={() => handleDeleteCategory(category.id)}
-                        className="ml-1 p-0.5 hover:bg-muted rounded-full transition-colors"
-                      >
-                        <XMarkIcon className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                      </button>
-                    </div>
+                    <Popover key={category.id} open={editingCategoryId === category.id} onOpenChange={(open) => setEditingCategoryId(open ? category.id : null)}>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm bg-card hover:bg-muted/50 transition-colors cursor-pointer"
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: category.color || '#94a3b8' }}
+                          />
+                          <span>{category.name}</span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-4" align="start">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm">{category.name}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCategoryId(null);
+                                handleDeleteCategory(category.id);
+                              }}
+                              className="p-1 hover:bg-muted rounded transition-colors"
+                              title="Delete category"
+                            >
+                              <TrashIcon className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </div>
+                          <ColorPicker
+                            value={category.color || '#94a3b8'}
+                            onChange={(color) => handleUpdateCategoryColor(category.id, color)}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   ))}
                 </div>
               )}
@@ -614,7 +722,24 @@ export default function SettingsPage() {
 
               <div className="space-y-4">
                 <h4 className="font-medium">Add New Category</h4>
-                <div className="flex gap-4">
+                <div className="flex gap-3 items-end">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="w-10 h-10 rounded-md border flex items-center justify-center hover:bg-muted/50 transition-colors"
+                        style={{ backgroundColor: newCategoryColor }}
+                        title="Choose color"
+                      >
+                        <SwatchIcon className="h-5 w-5 text-white drop-shadow" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-4" align="start">
+                      <ColorPicker
+                        value={newCategoryColor}
+                        onChange={setNewCategoryColor}
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <div className="flex-1">
                     <Input
                       value={newCategoryName}

@@ -8,32 +8,44 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { getCategoryColor, formatCurrency } from '@/lib/utils';
+import { getCategoryColor, getCategoryColorFromList, formatCurrency } from '@/lib/utils';
 
 interface CategoryData {
   category: string;
   total: number;
 }
 
+interface CategoryInfo {
+  name: string;
+  color: string | null;
+}
+
 interface CategoryBarChartProps {
   data: CategoryData[];
   title?: string;
+  categories?: CategoryInfo[];
 }
 
 export function CategoryBarChart({
   data,
   title = 'Spending by Category',
+  categories = [],
 }: CategoryBarChartProps) {
+  const getColor = (category: string) =>
+    categories.length > 0
+      ? getCategoryColorFromList(category, categories)
+      : getCategoryColor(category);
+
   const chartData = data.map((item) => ({
     name: item.category,
     amount: Math.abs(item.total),
-    fill: getCategoryColor(item.category),
+    fill: getColor(item.category),
   }));
 
   const chartConfig = data.reduce((acc, item) => {
     acc[item.category] = {
       label: item.category,
-      color: getCategoryColor(item.category),
+      color: getColor(item.category),
     };
     return acc;
   }, {} as ChartConfig);

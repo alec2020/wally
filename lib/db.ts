@@ -474,6 +474,21 @@ export function getCategoryById(id: number): Category | undefined {
   return getDb().prepare('SELECT * FROM categories WHERE id = ?').get(id) as Category | undefined;
 }
 
+export function updateCategory(id: number, updates: { color?: string }): void {
+  const fields: string[] = [];
+  const params: (string | null)[] = [];
+
+  if (updates.color !== undefined) {
+    fields.push('color = ?');
+    params.push(updates.color);
+  }
+
+  if (fields.length > 0) {
+    params.push(id.toString());
+    getDb().prepare(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`).run(...params.slice(0, -1), id);
+  }
+}
+
 export function getTransactionCountByCategory(categoryName: string): number {
   const result = getDb().prepare(
     'SELECT COUNT(*) as count FROM transactions WHERE category = ?'

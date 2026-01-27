@@ -68,6 +68,18 @@ export function getCategoryColor(category: string): string {
   return colors[category] || '#94a3b8';
 }
 
+// Dynamic color lookup that checks categories array first, then falls back to hardcoded colors
+export function getCategoryColorFromList(
+  category: string,
+  categories: { name: string; color: string | null }[]
+): string {
+  const found = categories.find(c => c.name === category);
+  if (found?.color) {
+    return found.color;
+  }
+  return getCategoryColor(category);
+}
+
 // Asset type helpers
 export type AssetType = 'vehicle' | 'jewelry' | 'real_estate' | 'collectible' | 'other';
 

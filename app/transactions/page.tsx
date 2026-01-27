@@ -25,9 +25,15 @@ interface Account {
   name: string;
 }
 
+interface Category {
+  name: string;
+  color: string | null;
+}
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const { isScreenshotMode } = useScreenshotMode();
@@ -86,10 +92,39 @@ export default function TransactionsPage() {
     }
   }, [isScreenshotMode]);
 
+  const fetchCategories = useCallback(async () => {
+    if (isScreenshotMode) {
+      setCategories([
+        { name: 'Income', color: '#22c55e' },
+        { name: 'Housing', color: '#3b82f6' },
+        { name: 'Transportation', color: '#f59e0b' },
+        { name: 'Groceries', color: '#84cc16' },
+        { name: 'Food', color: '#ef4444' },
+        { name: 'Shopping', color: '#8b5cf6' },
+        { name: 'Entertainment', color: '#ec4899' },
+        { name: 'Health', color: '#14b8a6' },
+        { name: 'Travel', color: '#06b6d4' },
+        { name: 'Financial', color: '#64748b' },
+        { name: 'Subscriptions', color: '#f97316' },
+        { name: 'Investing', color: '#10b981' },
+        { name: 'Other', color: '#94a3b8' },
+      ]);
+      return;
+    }
+    try {
+      const response = await fetch('/api/categories');
+      const data = await response.json();
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+    }
+  }, [isScreenshotMode]);
+
   useEffect(() => {
     fetchTransactions();
     fetchAccounts();
-  }, [fetchTransactions, fetchAccounts]);
+    fetchCategories();
+  }, [fetchTransactions, fetchAccounts, fetchCategories]);
 
   const handleUpdate = async (id: number, updates: Partial<Transaction>) => {
     try {
@@ -202,6 +237,7 @@ export default function TransactionsPage() {
       <TransactionTable
         transactions={transactions}
         accounts={accounts}
+        categories={categories}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
         onBulkUpdate={handleBulkUpdate}

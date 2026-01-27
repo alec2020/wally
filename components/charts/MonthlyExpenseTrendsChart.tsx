@@ -10,7 +10,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart';
-import { formatCurrency, formatMonth, getCategoryColor } from '@/lib/utils';
+import { formatCurrency, formatMonth, getCategoryColor, getCategoryColorFromList } from '@/lib/utils';
 
 interface MonthlyExpenseData {
   month: string;
@@ -18,13 +18,24 @@ interface MonthlyExpenseData {
   total: number;
 }
 
-interface MonthlyExpenseTrendsChartProps {
-  data: MonthlyExpenseData[];
+interface CategoryInfo {
+  name: string;
+  color: string | null;
 }
 
-export function MonthlyExpenseTrendsChart({ data }: MonthlyExpenseTrendsChartProps) {
+interface MonthlyExpenseTrendsChartProps {
+  data: MonthlyExpenseData[];
+  categories?: CategoryInfo[];
+}
+
+export function MonthlyExpenseTrendsChart({ data, categories: categoriesProp = [] }: MonthlyExpenseTrendsChartProps) {
+  const getColor = (category: string) =>
+    categoriesProp.length > 0
+      ? getCategoryColorFromList(category, categoriesProp)
+      : getCategoryColor(category);
+
   // Get unique categories and months
-  const categories = [...new Set(data.map((d) => d.category))];
+  const categoryNames = [...new Set(data.map((d) => d.category))];
   const months = [...new Set(data.map((d) => d.month))].sort();
 
   // Take last 12 months
@@ -35,7 +46,7 @@ export function MonthlyExpenseTrendsChart({ data }: MonthlyExpenseTrendsChartPro
     const monthData: Record<string, string | number> = {
       month: formatMonth(month),
     };
-    categories.forEach((category) => {
+    categoryNames.forEach((category) => {
       const entry = data.find((d) => d.month === month && d.category === category);
       monthData[category] = entry?.total || 0;
     });
@@ -44,10 +55,10 @@ export function MonthlyExpenseTrendsChart({ data }: MonthlyExpenseTrendsChartPro
 
   // Build chart config dynamically based on categories
   const chartConfig: ChartConfig = {};
-  categories.forEach((category) => {
+  categoryNames.forEach((category) => {
     chartConfig[category] = {
       label: category,
-      color: getCategoryColor(category),
+      color: getColor(category),
     };
   });
 
@@ -108,13 +119,13 @@ export function MonthlyExpenseTrendsChart({ data }: MonthlyExpenseTrendsChartPro
               }
             />
             <ChartLegend content={<ChartLegendContent />} />
-            {categories.map((category, index) => (
+            {categoryNames.map((category) => (
               <Area
                 key={category}
                 type="monotone"
                 dataKey={category}
-                stroke={getCategoryColor(category)}
-                fill={getCategoryColor(category)}
+                stroke={getColor(category)}
+                fill={getColor(category)}
                 fillOpacity={0.1}
                 strokeWidth={2}
               />

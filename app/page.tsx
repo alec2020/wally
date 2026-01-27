@@ -41,25 +41,52 @@ interface AnalyticsData {
   };
 }
 
+interface Category {
+  id: number;
+  name: string;
+  color: string | null;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { isScreenshotMode } = useScreenshotMode();
 
   useEffect(() => {
     if (isScreenshotMode) {
       setData(generateFakeAnalytics() as AnalyticsData);
+      setCategories([
+        { id: 1, name: 'Income', color: '#22c55e' },
+        { id: 2, name: 'Housing', color: '#3b82f6' },
+        { id: 3, name: 'Transportation', color: '#f59e0b' },
+        { id: 4, name: 'Groceries', color: '#84cc16' },
+        { id: 5, name: 'Food', color: '#ef4444' },
+        { id: 6, name: 'Shopping', color: '#8b5cf6' },
+        { id: 7, name: 'Entertainment', color: '#ec4899' },
+        { id: 8, name: 'Health', color: '#14b8a6' },
+        { id: 9, name: 'Travel', color: '#06b6d4' },
+        { id: 10, name: 'Financial', color: '#64748b' },
+        { id: 11, name: 'Subscriptions', color: '#f97316' },
+        { id: 12, name: 'Investing', color: '#10b981' },
+        { id: 13, name: 'Other', color: '#94a3b8' },
+      ]);
       setIsLoading(false);
       return;
     }
 
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/analytics');
-        const result = await response.json();
-        setData(result);
+        const [analyticsRes, categoriesRes] = await Promise.all([
+          fetch('/api/analytics'),
+          fetch('/api/categories'),
+        ]);
+        const analyticsResult = await analyticsRes.json();
+        const categoriesResult = await categoriesRes.json();
+        setData(analyticsResult);
+        setCategories(categoriesResult.categories || []);
       } catch (error) {
-        console.error('Failed to fetch analytics:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -151,12 +178,12 @@ export default function Dashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <SpendingPieChart data={data.currentMonthSpendingByCategory} />
+        <SpendingPieChart data={data.currentMonthSpendingByCategory} categories={categories} />
         <MonthlyTrendChart data={data.monthlyTotals} />
       </div>
 
       {/* Monthly Expense Trends */}
-      <MonthlyExpenseTrendsChart data={data.monthlyExpensesByCategory} />
+      <MonthlyExpenseTrendsChart data={data.monthlyExpensesByCategory} categories={categories} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { CategoryBarChart } from '@/components/charts/CategoryBarChart';
+import { IncomeExpensesChart } from '@/components/charts/IncomeExpensesChart';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
 import { StatCard } from '@/components/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import {
   CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   CurrencyDollarIcon,
   ArrowTrendingDownIcon,
   ReceiptPercentIcon,
@@ -83,6 +84,7 @@ export default function AnalyticsPage() {
     from: undefined,
     to: undefined,
   });
+  const [categoryScrolled, setCategoryScrolled] = useState(false);
   const { isScreenshotMode } = useScreenshotMode();
 
   const dateRange = useMemo(() => {
@@ -381,52 +383,64 @@ export default function AnalyticsPage() {
 
       {/* Category Breakdown Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CategoryBarChart
-          data={data.spendingByCategory}
-          title="Spending by Category"
+        <IncomeExpensesChart
+          income={data.savingsRate.income}
+          expenses={data.savingsRate.expenses}
+          saved={data.savingsRate.saved}
+          savingsRate={data.savingsRate.current}
         />
 
-        <Card>
+        <Card className="h-[480px] flex flex-col">
           <CardHeader>
             <CardTitle>Category Details</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-hidden">
             {data.spendingByCategory.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No spending data for this period</p>
             ) : (
-              <div className="space-y-3">
-                {data.spendingByCategory.map((cat) => {
-                  const percentage = data.stats.totalExpenses !== 0
-                    ? (cat.total / data.stats.totalExpenses) * 100
-                    : 0;
-                  // Build the link URL with category and date filters
-                  const params = new URLSearchParams();
-                  params.set('category', cat.category);
-                  if (dateRange.startDate) params.set('startDate', dateRange.startDate);
-                  if (dateRange.endDate) params.set('endDate', dateRange.endDate);
-                  const href = `/transactions?${params.toString()}`;
+              <div className="relative h-full">
+                <div
+                  className="space-y-3 h-full overflow-y-auto pr-2 pb-6"
+                  onScroll={(e) => setCategoryScrolled(e.currentTarget.scrollTop > 0)}
+                >
+                  {data.spendingByCategory.map((cat) => {
+                    const percentage = data.stats.totalExpenses !== 0
+                      ? (cat.total / data.stats.totalExpenses) * 100
+                      : 0;
+                    // Build the link URL with category and date filters
+                    const params = new URLSearchParams();
+                    params.set('category', cat.category);
+                    if (dateRange.startDate) params.set('startDate', dateRange.startDate);
+                    if (dateRange.endDate) params.set('endDate', dateRange.endDate);
+                    const href = `/transactions?${params.toString()}`;
 
-                  return (
-                    <Link
-                      key={cat.category}
-                      href={href}
-                      className="block space-y-1.5 p-2 -mx-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{cat.category}</span>
-                        <span className="text-muted-foreground">
-                          {formatCurrency(Math.abs(cat.total))} ({percentage.toFixed(1)}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500 rounded-full"
-                          style={{ width: `${Math.min(percentage, 100)}%` }}
-                        />
-                      </div>
-                    </Link>
-                  );
-                })}
+                    return (
+                      <Link
+                        key={cat.category}
+                        href={href}
+                        className="block space-y-1.5 p-2 -mx-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{cat.category}</span>
+                          <span className="text-muted-foreground">
+                            {formatCurrency(Math.abs(cat.total))} ({percentage.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full"
+                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                          />
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+                {data.spendingByCategory.length > 6 && !categoryScrolled && (
+                  <div className="absolute bottom-0 left-0 right-0 flex justify-center pointer-events-none">
+                    <ChevronDownIcon className="h-5 w-5 text-muted-foreground animate-bounce" />
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
