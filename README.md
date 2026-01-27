@@ -20,6 +20,26 @@ Categories are fully customizable—create your own or modify the defaults to ma
 ### Built for Power Users
 Wally is open source and runs as a local web app. Customize it, extend it, or use it with Claude Code to build your own financial workflows.
 
+## Screenshots
+
+![Dashboard](screenshots/dashboard.png)
+
+<details>
+<summary>More screenshots</summary>
+
+### Transactions
+![Transactions](screenshots/transactions.png)
+
+### Analytics
+![Analytics](screenshots/analytics.png)
+![Subscriptions & Month-over-Month](screenshots/analytics-subscriptions.png)
+
+### Net Worth
+![Net Worth](screenshots/net-worth.png)
+![Assets & Debts](screenshots/net-worth-breakdown.png)
+
+</details>
+
 ## What You Can Do
 
 - **Import statements** from any bank or credit card (PDF upload with AI extraction)
