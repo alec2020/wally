@@ -65,8 +65,8 @@ export function SpendingPieChart({ data, categories = [] }: SpendingPieChartProp
       <CardHeader>
         <CardTitle>Spending by Category</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+      <CardContent className="overflow-visible">
+        <ChartContainer config={chartConfig} className="h-[300px] w-full overflow-visible [&_.recharts-responsive-container]:overflow-visible [&_.recharts-surface]:overflow-visible [&_svg]:overflow-visible">
           <PieChart>
             <ChartTooltip
               content={

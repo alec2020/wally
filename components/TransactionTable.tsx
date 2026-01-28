@@ -278,7 +278,7 @@ export function TransactionTable({
 
       const matchesType =
         transactionType === 'all' ||
-        (transactionType === 'income' && tx.amount > 0) ||
+        (transactionType === 'income' && tx.category === 'Income') ||
         (transactionType === 'expenses' && tx.amount < 0);
 
       const txDate = parseISO(tx.date);

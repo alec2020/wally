@@ -1,0 +1,8 @@
+{
+  "name": "wally",
+  "description": "Financial analysis skill for Wally finance tracker database queries",
+  "author": {
+    "name": "Local",
+    "email": "local@localhost"
+  }
+}

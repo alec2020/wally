@@ -372,6 +372,7 @@ export default function AnalyticsPage() {
           value={data.stats.totalTransactions}
           icon={ReceiptPercentIcon}
           format="number"
+          neutral
         />
         <StatCard
           title="Savings Rate"
@@ -405,7 +406,7 @@ export default function AnalyticsPage() {
                 >
                   {data.spendingByCategory.map((cat) => {
                     const percentage = data.stats.totalExpenses !== 0
-                      ? (cat.total / data.stats.totalExpenses) * 100
+                      ? Math.abs(cat.total / data.stats.totalExpenses) * 100
                       : 0;
                     // Build the link URL with category and date filters
                     const params = new URLSearchParams();
