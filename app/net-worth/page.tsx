@@ -259,10 +259,14 @@ export default function NetWorthPage() {
 
   // Generate month options (current month + last 12 months)
   const monthOptions = Array.from({ length: 13 }, (_, i) => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
-    return month;
+    const now = new Date();
+    let year = now.getFullYear();
+    let month = now.getMonth() + 1 - i;
+    while (month <= 0) {
+      month += 12;
+      year -= 1;
+    }
+    return `${year}-${String(month).padStart(2, '0')}-01`;
   });
 
   const fetchData = useCallback(async () => {
@@ -714,6 +718,20 @@ export default function NetWorthPage() {
           <p className="text-4xl font-bold text-foreground tracking-tight">
             {formatCurrency(animatedNetWorth)}
           </p>
+          {snapshotData?.netWorthHistory && snapshotData.netWorthHistory.length >= 2 && (() => {
+            const history = snapshotData.netWorthHistory;
+            const currentBalance = history[0].balance;
+            const prevBalance = history[1].balance;
+            const dollarDiff = currentBalance - prevBalance;
+            const pctDiff = prevBalance !== 0 ? (dollarDiff / Math.abs(prevBalance)) * 100 : 0;
+            const isPositive = dollarDiff >= 0;
+            return (
+              <p className={`text-sm mt-1 flex items-center gap-1 ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                {isPositive ? <ArrowTrendingUpIcon className="h-4 w-4" /> : <ArrowTrendingDownIcon className="h-4 w-4" />}
+                {isPositive ? '+' : ''}{formatCurrency(dollarDiff)} ({isPositive ? '+' : ''}{pctDiff.toFixed(1)}%) from last month
+              </p>
+            );
+          })()}
         </CardContent>
         {snapshotData?.netWorthHistory && snapshotData.netWorthHistory.length > 0 ? (
           <CardContent>
