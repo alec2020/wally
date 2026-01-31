@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
 
     const spendingByCategory = getSpendingByCategory(startDate, endDate);
     const monthlyTotals = getMonthlyTotals(startDate, endDate);
+    const spendingTrend6Months = getMonthlyTotals(
+      new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString().split('T')[0],
+      new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+    );
     const topMerchants = getTopMerchants(50, startDate, endDate);
     const totalBalance = getTotalBalance();
     const stats = getTransactionStats(startDate, endDate);
@@ -34,7 +38,10 @@ export async function GET(request: NextRequest) {
     // When viewing all time, use minOccurrences=2 to filter out one-off miscategorized payments
     const subscriptions = getSubscriptions(startDate && endDate ? 1 : 2, startDate, endDate);
     const savingsRateData = getSavingsRateForPeriod(startDate, endDate);
-    const merchantFrequency = getMerchantFrequency(20);
+    const mfNow = new Date();
+    const merchantFreqStart = new Date(mfNow.getFullYear(), mfNow.getMonth() - 5, 1).toISOString().split('T')[0];
+    const merchantFreqEnd = new Date(mfNow.getFullYear(), mfNow.getMonth() + 1, 0).toISOString().split('T')[0];
+    const merchantFrequency = getMerchantFrequency(20, merchantFreqStart, merchantFreqEnd);
     // Calculate net worth including assets and liabilities
     const accountsTotal = latestBalances.reduce((sum, b) => sum + b.balance, 0);
     const assets = getAssets();
@@ -189,6 +196,7 @@ export async function GET(request: NextRequest) {
         saved: savingsRateData.saved,
       },
       merchantFrequency,
+      spendingTrend6Months,
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);

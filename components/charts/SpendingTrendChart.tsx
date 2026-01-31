@@ -1,6 +1,7 @@
 'use client';
 
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { useMemo } from 'react';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ReferenceArea } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartConfig,
@@ -18,6 +19,8 @@ interface MonthlyData {
 
 interface SpendingTrendChartProps {
   data: MonthlyData[];
+  selectedStartDate?: string;
+  selectedEndDate?: string;
 }
 
 const chartConfig = {
@@ -27,11 +30,52 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function SpendingTrendChart({ data }: SpendingTrendChartProps) {
-  const chartData = [...data].reverse().map((item) => ({
-    month: formatMonth(item.month),
-    spending: Math.abs(item.expenses),
-  }));
+export function SpendingTrendChart({ data, selectedStartDate, selectedEndDate }: SpendingTrendChartProps) {
+  const chartData = useMemo(() => {
+    return [...data].reverse().map((item) => ({
+      month: formatMonth(item.month),
+      rawMonth: item.month,
+      spending: Math.abs(item.expenses),
+    }));
+  }, [data]);
+
+  // Determine which months fall within the selected date range
+  const selectedMonths = useMemo(() => {
+    if (!selectedStartDate || !selectedEndDate) return new Set<string>();
+    const startMonth = selectedStartDate.slice(0, 7);
+    const endMonth = selectedEndDate.slice(0, 7);
+    const selected = new Set<string>();
+    for (const item of chartData) {
+      if (item.rawMonth >= startMonth && item.rawMonth <= endMonth) {
+        selected.add(item.month);
+      }
+    }
+    return selected;
+  }, [selectedStartDate, selectedEndDate, chartData]);
+
+  // Find contiguous ranges of selected months for ReferenceArea
+  const referenceAreas = useMemo(() => {
+    if (selectedMonths.size === 0) return [];
+    const areas: { x1: string; x2: string }[] = [];
+    let rangeStart: string | null = null;
+    let rangeLast: string | null = null;
+    for (const item of chartData) {
+      if (selectedMonths.has(item.month)) {
+        if (!rangeStart) rangeStart = item.month;
+        rangeLast = item.month;
+      } else {
+        if (rangeStart && rangeLast) {
+          areas.push({ x1: rangeStart, x2: rangeLast });
+        }
+        rangeStart = null;
+        rangeLast = null;
+      }
+    }
+    if (rangeStart && rangeLast) {
+      areas.push({ x1: rangeStart, x2: rangeLast });
+    }
+    return areas;
+  }, [chartData, selectedMonths]);
 
   if (chartData.length === 0) {
     return (
@@ -67,9 +111,10 @@ export function SpendingTrendChart({ data }: SpendingTrendChartProps) {
                   y={y}
                   dy={12}
                   fontSize={12}
+                  fontWeight={selectedMonths.has(payload.value) ? 700 : 400}
                   textAnchor={index === chartData.length - 1 ? 'end' : index === 0 ? 'start' : 'middle'}
                   fill="currentColor"
-                  className="text-muted-foreground"
+                  className={selectedMonths.has(payload.value) ? 'text-foreground' : 'text-muted-foreground'}
                 >
                   {payload.value}
                 </text>
@@ -95,12 +140,39 @@ export function SpendingTrendChart({ data }: SpendingTrendChartProps) {
                 <stop offset="95%" stopColor="#f97316" stopOpacity={0.05} />
               </linearGradient>
             </defs>
+            {referenceAreas.map((area, i) => (
+              <ReferenceArea
+                key={i}
+                x1={area.x1}
+                x2={area.x2}
+                fill="#f97316"
+                fillOpacity={0.08}
+                strokeOpacity={0}
+              />
+            ))}
             <Area
               type="monotone"
               dataKey="spending"
               stroke="#f97316"
               strokeWidth={2}
               fill="url(#spendingGradient)"
+              dot={({ cx, cy, payload }) => {
+                const isSelected = selectedMonths.has(payload.month);
+                return isSelected ? (
+                  <circle
+                    key={payload.month}
+                    cx={cx}
+                    cy={cy}
+                    r={4}
+                    fill="#f97316"
+                    stroke="white"
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <circle key={payload.month} cx={cx} cy={cy} r={0} fill="none" />
+                );
+              }}
+              activeDot={{ r: 5, strokeWidth: 2 }}
             />
           </AreaChart>
         </ChartContainer>

@@ -44,6 +44,7 @@ export default function TransactionsPage() {
     const category = searchParams.get('category');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const search = searchParams.get('search') || undefined;
 
     const categoryFilters = category ? [category] : undefined;
 
@@ -58,7 +59,7 @@ export default function TransactionsPage() {
       };
     }
 
-    return { categoryFilters, dateRange };
+    return { categoryFilters, dateRange, search };
   }, [searchParams]);
 
   const fetchTransactions = useCallback(async () => {
@@ -246,6 +247,7 @@ export default function TransactionsPage() {
         isLoading={isCategorizing}
         initialCategoryFilters={initialFilters.categoryFilters}
         initialDateRange={initialFilters.dateRange}
+        initialSearch={initialFilters.search}
       />
     </div>
   );

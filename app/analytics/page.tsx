@@ -25,7 +25,7 @@ import {
   BanknotesIcon,
   BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline';
-import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, subDays, differenceInDays } from 'date-fns';
 import { useScreenshotMode } from '@/lib/screenshot-mode';
 import { generateFakeAnalytics } from '@/lib/fake-data';
 
@@ -71,12 +71,14 @@ interface AnalyticsData {
     avgPerVisit: number;
     lastVisit: string;
   }[];
+  spendingTrend6Months: { month: string; income: number; expenses: number }[];
 }
 
 type DatePreset = 'this-month' | 'last-month' | 'last-3-months' | 'last-6-months' | 'this-year' | 'all' | 'custom';
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [prevPeriodSpent, setPrevPeriodSpent] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [preset, setPreset] = useState<DatePreset>('this-month');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -130,9 +132,39 @@ export default function AnalyticsPage() {
     }
   }, [preset, currentMonth, customDateRange]);
 
+  const merchantFreqRange = useMemo(() => {
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      startDate: format(startDate, 'yyyy-MM-dd'),
+      endDate: format(endDate, 'yyyy-MM-dd'),
+      label: `${startDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}`,
+    };
+  }, []);
+
+  const prevDateRange = useMemo(() => {
+    if (!dateRange.startDate || !dateRange.endDate) return null;
+    const start = new Date(dateRange.startDate + 'T12:00:00');
+    const end = new Date(dateRange.endDate + 'T12:00:00');
+    const days = differenceInDays(end, start) + 1;
+    const prevEnd = subDays(start, 1);
+    const prevStart = subDays(prevEnd, days - 1);
+    const sameMonth = prevStart.getMonth() === prevEnd.getMonth() && prevStart.getFullYear() === prevEnd.getFullYear();
+    const label = sameMonth
+      ? format(prevStart, 'MMMM yyyy')
+      : `${format(prevStart, 'MMM yyyy')} - ${format(prevEnd, 'MMM yyyy')}`;
+    return {
+      startDate: format(prevStart, 'yyyy-MM-dd'),
+      endDate: format(prevEnd, 'yyyy-MM-dd'),
+      label,
+    };
+  }, [dateRange]);
+
   useEffect(() => {
     if (isScreenshotMode) {
       setData(generateFakeAnalytics() as AnalyticsData);
+      setPrevPeriodSpent(null);
       setIsLoading(false);
       return;
     }
@@ -144,9 +176,25 @@ export default function AnalyticsPage() {
         if (dateRange.startDate) params.set('startDate', dateRange.startDate);
         if (dateRange.endDate) params.set('endDate', dateRange.endDate);
 
-        const response = await fetch(`/api/analytics?${params.toString()}`);
-        const result = await response.json();
+        const fetches: Promise<Response>[] = [fetch(`/api/analytics?${params.toString()}`)];
+
+        if (prevDateRange) {
+          const prevParams = new URLSearchParams();
+          prevParams.set('startDate', prevDateRange.startDate);
+          prevParams.set('endDate', prevDateRange.endDate);
+          fetches.push(fetch(`/api/analytics?${prevParams.toString()}`));
+        }
+
+        const responses = await Promise.all(fetches);
+        const result = await responses[0].json();
         setData(result);
+
+        if (responses[1]) {
+          const prevResult = await responses[1].json();
+          setPrevPeriodSpent(prevResult.periodAnalytics?.totalSpent ?? null);
+        } else {
+          setPrevPeriodSpent(null);
+        }
       } catch (error) {
         console.error('Failed to fetch analytics:', error);
       } finally {
@@ -155,7 +203,7 @@ export default function AnalyticsPage() {
     };
 
     fetchData();
-  }, [dateRange, isScreenshotMode]);
+  }, [dateRange, prevDateRange, isScreenshotMode]);
 
   const handlePrevMonth = () => {
     setCurrentMonth(prev => subMonths(prev, 1));
@@ -360,6 +408,11 @@ export default function AnalyticsPage() {
           value={data.periodAnalytics.totalSpent}
           icon={CurrencyDollarIcon}
           neutral
+          comparison={prevPeriodSpent != null && prevPeriodSpent > 0 && prevDateRange ? {
+            pctDiff: ((data.periodAnalytics.totalSpent - prevPeriodSpent) / prevPeriodSpent) * 100,
+            dollarDiff: data.periodAnalytics.totalSpent - prevPeriodSpent,
+            periodLabel: prevDateRange.label,
+          } : undefined}
         />
         <StatCard
           title="Avg Daily Spend"
@@ -559,14 +612,19 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Spending Trends Chart */}
-      <SpendingTrendChart data={data.monthlyTotals} />
+      <SpendingTrendChart data={data.spendingTrend6Months} selectedStartDate={dateRange.startDate} selectedEndDate={dateRange.endDate} />
 
       {/* Merchant Frequency Section - Sorted by Visits */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <BuildingStorefrontIcon className="h-5 w-5 text-muted-foreground" />
-            <CardTitle>Most Visited Merchants</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BuildingStorefrontIcon className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Most Visited Merchants</CardTitle>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              {merchantFreqRange.label}
+            </span>
           </div>
         </CardHeader>
         <CardContent>
@@ -585,8 +643,10 @@ export default function AnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.merchantFrequency.slice(0, 10).map((merchant, index) => (
-                    <tr key={index} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                  {data.merchantFrequency.slice(0, 10).map((merchant, index) => {
+                    const merchantLink = `/transactions?search=${encodeURIComponent(merchant.merchant)}&startDate=${merchantFreqRange.startDate}&endDate=${merchantFreqRange.endDate}`;
+                    return (
+                    <tr key={index} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => window.location.href = merchantLink}>
                       <td className="py-3 px-2">
                         <span className="font-medium truncate max-w-[200px] block">{merchant.merchant}</span>
                       </td>
@@ -609,7 +669,8 @@ export default function AnalyticsPage() {
                         })()}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

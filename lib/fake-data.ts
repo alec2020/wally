@@ -172,6 +172,16 @@ export function generateFakeAnalytics() {
     subscriptions: generateFakeSubscriptions(),
     savingsRate: generateFakeSavingsRate(),
     merchantFrequency: generateFakeMerchantFrequency(),
+    spendingTrend6Months: Array.from({ length: 6 }, (_, i) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (5 - i));
+      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return {
+        month,
+        income: randomAmount(6000, 9000),
+        expenses: -randomAmount(4000, 6500),
+      };
+    }),
   };
 }
 

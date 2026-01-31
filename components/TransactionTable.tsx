@@ -160,6 +160,7 @@ interface TransactionTableProps {
   isLoading?: boolean;
   initialCategoryFilters?: string[];
   initialDateRange?: { from: Date; to: Date };
+  initialSearch?: string;
 }
 
 const CATEGORIES = [
@@ -193,13 +194,14 @@ export function TransactionTable({
   isLoading,
   initialCategoryFilters,
   initialDateRange,
+  initialSearch,
 }: TransactionTableProps) {
   const getColor = (category: string) =>
     categoriesProp.length > 0
       ? getCategoryColorFromList(category, categoriesProp)
       : getCategoryColor(category);
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch || '');
   const [categoryFilters, setCategoryFilters] = useState<string[]>(initialCategoryFilters || []);
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [transactionType, setTransactionType] = useState<TransactionType>('all');

@@ -955,8 +955,8 @@ export interface MerchantFrequency {
   lastVisit: string;
 }
 
-export function getMerchantFrequency(limit: number = 20): MerchantFrequency[] {
-  return getDb().prepare(`
+export function getMerchantFrequency(limit: number = 20, startDate?: string, endDate?: string): MerchantFrequency[] {
+  let query = `
     SELECT
       COALESCE(merchant, description) as merchant,
       COUNT(*) as visits,
@@ -965,10 +965,23 @@ export function getMerchantFrequency(limit: number = 20): MerchantFrequency[] {
       MAX(date) as lastVisit
     FROM transactions
     WHERE amount < 0 AND is_transfer = 0 AND category != 'Investing'
+  `;
+  const params: (string | number)[] = [];
+  if (startDate) {
+    query += ' AND date >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    query += ' AND date <= ?';
+    params.push(endDate);
+  }
+  query += `
     GROUP BY COALESCE(merchant, description)
     ORDER BY visits DESC
     LIMIT ?
-  `).all(limit) as MerchantFrequency[];
+  `;
+  params.push(limit);
+  return getDb().prepare(query).all(...params) as MerchantFrequency[];
 }
 
 // AI Settings operations
