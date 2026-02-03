@@ -29,7 +29,6 @@ import {
 } from '@/components/ui/table';
 import { NetWorthChart } from '@/components/charts/NetWorthChart';
 import { NetWorthBreakdownChart } from '@/components/charts/NetWorthBreakdownChart';
-import { StatCard } from '@/components/StatCard';
 import {
   formatCurrency,
   formatMonth,
@@ -746,30 +745,68 @@ export default function NetWorthPage() {
         )}
       </Card>
 
-      {/* Assets and Liabilities Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <StatCard
-          title="Total Assets"
-          subtitle={`${assets.length} tracked asset${assets.length !== 1 ? 's' : ''}`}
-          value={accountsTotal + totalAssetsValue}
-          icon={ArrowTrendingUpIcon}
-          neutral
-        />
-        <StatCard
-          title="Total Liabilities"
-          subtitle={`${liabilities.length} active debt${liabilities.length !== 1 ? 's' : ''}`}
-          value={totalLiabilitiesBalance}
-          icon={ArrowTrendingDownIcon}
-          variant="negative"
-        />
-      </div>
-
-      {/* Breakdown Chart */}
-      {breakdownData.length > 0 && (
-        <div className="mb-8">
-          <NetWorthBreakdownChart data={breakdownData} />
+      {/* Assets/Liabilities Summary + Breakdown Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-base font-semibold tracking-tight">Total Assets</CardTitle>
+                <p className="text-sm text-muted-foreground/70 mt-0.5">
+                  {assets.length} tracked asset{assets.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
+                <ArrowTrendingUpIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                {formatCurrency(accountsTotal + totalAssetsValue)}
+              </p>
+              <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
+                <span>Accounts: {formatCurrency(accountsTotal)}</span>
+                <span className="text-border">|</span>
+                <span>Other Assets: {formatCurrency(totalAssetsValue)}</span>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-base font-semibold tracking-tight">Total Liabilities</CardTitle>
+                <p className="text-sm text-muted-foreground/70 mt-0.5">
+                  {liabilities.length} active debt{liabilities.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-red-100 dark:bg-red-900/40">
+                <ArrowTrendingDownIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold tracking-tight text-red-600 dark:text-red-500" style={{ fontFamily: 'var(--font-display)' }}>
+                {formatCurrency(totalLiabilitiesBalance)}
+              </p>
+              {liabilities.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {liabilities.map((l) => {
+                    const progress = calculatePayoffProgress(l.original_amount, l.current_balance);
+                    return (
+                      <div key={l.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>{l.name}: {progress}% paid</span>
+                        {l !== liabilities[liabilities.length - 1] && <span className="text-border">|</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
+        {breakdownData.length > 0 && (
+          <NetWorthBreakdownChart data={breakdownData} />
+        )}
+      </div>
 
       {/* Assets and Debts Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

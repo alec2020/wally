@@ -144,6 +144,7 @@ export function generateFakeAnalytics() {
       totalExpenses: -18995,
       uncategorized: 8,
     },
+    hasCurrentMonthData: true,
     currentMonth: {
       income: 7250,
       expenses: -4995,
@@ -151,6 +152,14 @@ export function generateFakeAnalytics() {
       net: 2255,
       expensesTrend: -8.5,
     },
+    lastMonth: {
+      income: 7100,
+      expenses: -5200,
+      invested: 1400,
+      net: 1900,
+      label: 'Jan 2026',
+    },
+    lastMonthSpendingByCategory: [],
     topMerchants: [
       { merchant: 'Whole Foods Market', total: -485.32, count: 8 },
       { merchant: 'Amazon.com', total: -412.87, count: 12 },

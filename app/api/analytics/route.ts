@@ -132,10 +132,35 @@ export async function GET(request: NextRequest) {
       ))
       .reduce((sum, tx) => sum + tx.amount, 0);
 
+    const lastMonthIncome = lastMonthTransactions
+      .filter((tx) => tx.amount > 0 && !tx.is_transfer && tx.category === 'Income')
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const lastMonthInvested = lastMonthTransactions
+      .filter((tx) => tx.category === 'Investing')
+      .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+
+    const hasCurrentMonthData = currentMonthTransactions.length > 0;
+
     const expensesTrend =
       lastMonthExpenses !== 0
         ? ((currentMonthExpenses - lastMonthExpenses) / Math.abs(lastMonthExpenses)) * 100
         : 0;
+
+    // Calculate last month spending by category
+    const lastMonthSpendingByCategory = lastMonthTransactions
+      .filter((tx) => !tx.is_transfer && tx.category && tx.category !== 'Investing' && tx.category !== 'Income')
+      .reduce((acc, tx) => {
+        const category = tx.category!;
+        const existing = acc.find((c) => c.category === category);
+        if (existing) {
+          existing.total += tx.amount;
+        } else {
+          acc.push({ category, total: tx.amount });
+        }
+        return acc;
+      }, [] as { category: string; total: number }[])
+      .sort((a, b) => a.total - b.total);
 
     // Calculate current month spending by category
     // Include both negative amounts (purchases) and positive amounts (credits/refunds)
@@ -167,6 +192,7 @@ export async function GET(request: NextRequest) {
       netWorthHistory,
       currentNetWorth,
       netWorthUpdatedAt,
+      hasCurrentMonthData,
       currentMonth: {
         income: currentMonthIncome,
         expenses: currentMonthExpenses,
@@ -174,6 +200,14 @@ export async function GET(request: NextRequest) {
         net: currentMonthIncome + currentMonthExpenses,
         expensesTrend,
       },
+      lastMonth: {
+        income: lastMonthIncome,
+        expenses: lastMonthExpenses,
+        invested: lastMonthInvested,
+        net: lastMonthIncome + lastMonthExpenses,
+        label: new Date(now.getFullYear(), now.getMonth() - 1, 15).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      },
+      lastMonthSpendingByCategory,
       recentTransactions,
       // New analytics data for redesigned page
       periodAnalytics: {

@@ -21,11 +21,13 @@ import { generateFakeAnalytics } from '@/lib/fake-data';
 interface AnalyticsData {
   spendingByCategory: { category: string; total: number }[];
   currentMonthSpendingByCategory: { category: string; total: number }[];
+  lastMonthSpendingByCategory: { category: string; total: number }[];
   monthlyTotals: { month: string; income: number; expenses: number; invested: number }[];
   monthlyExpensesByCategory: { month: string; category: string; total: number }[];
   totalBalance: number;
   currentNetWorth: number;
   netWorthUpdatedAt: string | null;
+  hasCurrentMonthData: boolean;
   stats: {
     totalTransactions: number;
     totalIncome: number;
@@ -38,6 +40,13 @@ interface AnalyticsData {
     invested: number;
     net: number;
     expensesTrend: number;
+  };
+  lastMonth: {
+    income: number;
+    expenses: number;
+    invested: number;
+    net: number;
+    label: string;
   };
 }
 
@@ -140,6 +149,10 @@ export default function Dashboard() {
     );
   }
 
+  const showMonth = data.hasCurrentMonthData ? data.currentMonth : data.lastMonth;
+  const monthLabel = data.hasCurrentMonthData ? 'This month' : data.lastMonth.label;
+  const pieData = data.hasCurrentMonthData ? data.currentMonthSpendingByCategory : data.lastMonthSpendingByCategory;
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -157,28 +170,28 @@ export default function Dashboard() {
         />
         <StatCard
           title="Income"
-          value={data.currentMonth.income}
-          subtitle="This month"
+          value={showMonth.income}
+          subtitle={monthLabel}
           icon={ArrowTrendingUpIcon}
         />
         <StatCard
           title="Expenses"
-          value={Math.abs(data.currentMonth.expenses)}
-          subtitle="This month"
+          value={Math.abs(showMonth.expenses)}
+          subtitle={monthLabel}
           icon={ArrowTrendingDownIcon}
           variant="negative"
         />
         <StatCard
           title="Invested"
-          value={data.currentMonth.invested}
-          subtitle="This month"
+          value={showMonth.invested}
+          subtitle={monthLabel}
           icon={BuildingLibraryIcon}
         />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <SpendingPieChart data={data.currentMonthSpendingByCategory} categories={categories} />
+        <SpendingPieChart data={pieData} categories={categories} />
         <MonthlyTrendChart data={data.monthlyTotals} />
       </div>
 

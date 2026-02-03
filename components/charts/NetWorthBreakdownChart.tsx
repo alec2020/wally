@@ -21,9 +21,10 @@ interface BreakdownItem {
 
 interface NetWorthBreakdownChartProps {
   data: BreakdownItem[];
+  className?: string;
 }
 
-export function NetWorthBreakdownChart({ data }: NetWorthBreakdownChartProps) {
+export function NetWorthBreakdownChart({ data, className }: NetWorthBreakdownChartProps) {
   const chartData = data.map((item) => ({
     name: item.name,
     value: Math.abs(item.value),
@@ -41,7 +42,7 @@ export function NetWorthBreakdownChart({ data }: NetWorthBreakdownChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <Card>
+      <Card className={className}>
         <CardHeader>
           <CardTitle>Net Worth Breakdown</CardTitle>
         </CardHeader>
@@ -53,12 +54,12 @@ export function NetWorthBreakdownChart({ data }: NetWorthBreakdownChartProps) {
   }
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle>Net Worth Breakdown</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+      <CardContent className="overflow-visible">
+        <ChartContainer config={chartConfig} className="h-[300px] w-full overflow-visible [&_.recharts-responsive-container]:overflow-visible [&_.recharts-surface]:overflow-visible [&_svg]:overflow-visible">
           <PieChart>
             <ChartTooltip
               content={
