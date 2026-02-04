@@ -746,7 +746,7 @@ export default function NetWorthPage() {
       </Card>
 
       {/* Assets/Liabilities Summary + Breakdown Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7 mb-8">
         <div className="flex flex-col gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -809,9 +809,9 @@ export default function NetWorthPage() {
       </div>
 
       {/* Assets and Debts Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7 mb-8">
         {/* Assets Section */}
-        <Card>
+        <Card className="pt-4">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Assets</CardTitle>
           <Button size="sm" onClick={() => openAssetDialog()}>
@@ -886,7 +886,7 @@ export default function NetWorthPage() {
       </Card>
 
         {/* Debts Section */}
-        <Card>
+        <Card className="pt-4">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Debts</CardTitle>
           <Button size="sm" onClick={() => openLiabilityDialog()}>

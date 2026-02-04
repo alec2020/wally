@@ -14,6 +14,7 @@ import {
   getMerchantFrequency,
   getAssets,
   getLiabilities,
+  getRecentCategoryExpenses,
 } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -47,6 +48,12 @@ export async function GET(request: NextRequest) {
     const assets = getAssets();
     const liabilities = getLiabilities();
     const totalAssetsValue = assets.reduce((sum, a) => sum + a.current_value, 0);
+    const liabilitiesWithPayments = liabilities.filter(l => l.monthly_payment && l.monthly_payment > 0);
+    const housingExpenses = getRecentCategoryExpenses('Housing');
+    // Filter subscriptions to only those seen in the last 3 months
+    const subNow = new Date();
+    const threeMonthsAgo = new Date(subNow.getFullYear(), subNow.getMonth() - 2, 1).toISOString().split('T')[0];
+    const recentSubscriptions = subscriptions.filter(s => s.lastSeen >= threeMonthsAgo);
     const liabilitiesForNetWorth = liabilities
       .filter((l) => !l.exclude_from_net_worth)
       .reduce((sum, l) => sum + l.current_balance, 0);
@@ -231,6 +238,19 @@ export async function GET(request: NextRequest) {
       },
       merchantFrequency,
       spendingTrend6Months,
+      recentSubscriptions: recentSubscriptions.map(s => ({
+        merchant: s.merchant,
+        monthlyAmount: s.monthlyAmount,
+      })),
+      liabilitiesWithPayments: liabilitiesWithPayments.map(l => ({
+        name: l.name,
+        type: l.type,
+        monthlyPayment: l.monthly_payment!,
+      })),
+      housingExpenses: housingExpenses.map(h => ({
+        name: h.merchant,
+        amount: h.total,
+      })),
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);

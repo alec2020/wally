@@ -402,7 +402,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Period Summary Row - 4 Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-7">
         <StatCard
           title="Total Spent"
           value={data.periodAnalytics.totalSpent}
@@ -436,7 +436,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Category Breakdown Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
         <IncomeExpensesChart
           income={data.savingsRate.income}
           expenses={data.savingsRate.expenses}
@@ -502,7 +502,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Subscriptions & Month-over-Month Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
         {/* Subscriptions Section */}
         <Card>
           <CardHeader className="pb-3">

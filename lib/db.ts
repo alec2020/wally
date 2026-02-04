@@ -868,6 +868,37 @@ export function getSubscriptions(minOccurrences: number = 1, startDate?: string,
     .slice(0, 30);
 }
 
+export interface CategoryExpense {
+  merchant: string;
+  total: number;
+  count: number;
+}
+
+export function getRecentCategoryExpenses(category: string): CategoryExpense[] {
+  // Get the most recent month that has transactions in this category
+  const recentMonth = getDb().prepare(`
+    SELECT strftime('%Y-%m', date) as month
+    FROM transactions
+    WHERE category = ? AND amount < 0 AND is_transfer = 0
+    ORDER BY date DESC
+    LIMIT 1
+  `).get(category) as { month: string } | undefined;
+
+  if (!recentMonth) return [];
+
+  return getDb().prepare(`
+    SELECT
+      COALESCE(merchant, description) as merchant,
+      ABS(SUM(amount)) as total,
+      COUNT(*) as count
+    FROM transactions
+    WHERE category = ? AND amount < 0 AND is_transfer = 0
+      AND strftime('%Y-%m', date) = ?
+    GROUP BY COALESCE(merchant, description)
+    ORDER BY total DESC
+  `).all(category, recentMonth.month) as CategoryExpense[];
+}
+
 // Savings Rate by Month
 export interface SavingsData {
   month: string;

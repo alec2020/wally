@@ -6,6 +6,8 @@ import { StatCard } from '@/components/StatCard';
 import { SpendingPieChart } from '@/components/charts/SpendingPieChart';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
 import { MonthlyExpenseTrendsChart } from '@/components/charts/MonthlyExpenseTrendsChart';
+import { RecurringExpensesCard } from '@/components/RecurringExpensesCard';
+import { IncomeOverviewCard } from '@/components/IncomeOverviewCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +24,9 @@ interface AnalyticsData {
   spendingByCategory: { category: string; total: number }[];
   currentMonthSpendingByCategory: { category: string; total: number }[];
   lastMonthSpendingByCategory: { category: string; total: number }[];
+  recentSubscriptions?: { merchant: string; monthlyAmount: number }[];
+  liabilitiesWithPayments?: { name: string; type: string; monthlyPayment: number }[];
+  housingExpenses?: { name: string; amount: number }[];
   monthlyTotals: { month: string; income: number; expenses: number; invested: number }[];
   monthlyExpensesByCategory: { month: string; category: string; total: number }[];
   totalBalance: number;
@@ -109,12 +114,12 @@ export default function Dashboard() {
       <div className="p-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
             <div className="h-32 bg-muted rounded"></div>
             <div className="h-32 bg-muted rounded"></div>
             <div className="h-32 bg-muted rounded"></div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
             <div className="h-80 bg-muted rounded"></div>
             <div className="h-80 bg-muted rounded"></div>
           </div>
@@ -161,7 +166,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-7 mb-8">
         <StatCard
           title="Net Worth"
           value={data.currentNetWorth}
@@ -190,13 +195,25 @@ export default function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7 mb-8">
         <SpendingPieChart data={pieData} categories={categories} />
         <MonthlyTrendChart data={data.monthlyTotals} />
       </div>
 
       {/* Monthly Expense Trends */}
-      <MonthlyExpenseTrendsChart data={data.monthlyExpensesByCategory} categories={categories} />
+      <div className="mb-8">
+        <MonthlyExpenseTrendsChart data={data.monthlyExpensesByCategory} categories={categories} />
+      </div>
+
+      {/* Recurring Expenses */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+        <RecurringExpensesCard
+          subscriptions={data.recentSubscriptions || []}
+          liabilities={data.liabilitiesWithPayments || []}
+          housingExpenses={data.housingExpenses || []}
+        />
+        <IncomeOverviewCard monthlyTotals={data.monthlyTotals} />
+      </div>
     </div>
   );
 }
