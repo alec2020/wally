@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { IncomeExpensesChart } from '@/components/charts/IncomeExpensesChart';
 import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
+import { CashFlowSankeyChart } from '@/components/charts/CashFlowSankeyChart';
 import { StatCard } from '@/components/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -610,6 +611,12 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cash Flow Sankey */}
+      <CashFlowSankeyChart
+        spendingByCategory={data.spendingByCategory}
+        savingsRate={data.savingsRate}
+      />
 
       {/* Spending Trends Chart */}
       <SpendingTrendChart data={data.spendingTrend6Months} selectedStartDate={dateRange.startDate} selectedEndDate={dateRange.endDate} />
