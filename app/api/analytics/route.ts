@@ -71,6 +71,12 @@ export async function GET(request: NextRequest) {
       const start = new Date(startDate);
       const end = new Date(endDate);
       daysInPeriod = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    } else if (periodTransactions.length > 0) {
+      // "All Time" - calculate from earliest to latest transaction
+      const dates = periodTransactions.map(tx => tx.date).sort();
+      const earliest = new Date(dates[0]);
+      const latest = new Date(dates[dates.length - 1]);
+      daysInPeriod = Math.max(1, Math.ceil((latest.getTime() - earliest.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     }
 
     // Calculate total spent (absolute expenses)
